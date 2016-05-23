@@ -17,7 +17,6 @@ class LCCfg:
         self.appdb_instance = config.get(self.DEFAULT_SECTION, "app_db.instance")
         self.data_dir = config.get(self.DEFAULT_SECTION, "data.dir")
         self.data_fileprefix = config.get(self.DEFAULT_SECTION, "data.fileprefix")
-        self.data_fileextension = config.get(self.DEFAULT_SECTION, "data.fileextension")
         self.dictionary_file = config.get(self.DEFAULT_SECTION, "dictionary.file")
         self.dictionary_dictsheet = config.get(self.DEFAULT_SECTION, "dictionary.dictsheet")
         self.sampling_file = config.get(self.DEFAULT_SECTION, "sampling.file")

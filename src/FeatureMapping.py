@@ -114,8 +114,3 @@ def mapping(fields, col_pos_dict):
     yi = map_loan_status(fields[col_pos_dict["loan_status"]])
     print(len(xi))
     return xi, yi
-
-
-
-
-map_features("data/traing_data_small.csv")

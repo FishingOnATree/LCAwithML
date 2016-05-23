@@ -34,7 +34,7 @@ def get_column_def(ws):
 
 
 def get_data_file_list(dn):
-    return [(dn+"/"+fn) for fn in os.listdir(dn) if fn.startswith("LoanStats3") and fn.endswith(".csv")]
+    return [(dn+"/"+fn) for fn in os.listdir(dn) if fn.startswith(config.data_fileprefix) and fn.endswith(".csv")]
 
 
 def create_lc_data(dn, def_fn, tn):
@@ -160,14 +160,16 @@ else:
     for i in range(1, len(sys.argv)):
         option = sys.argv[i]
         if option.startswith("sql"):
-            create_col_def("data/LCDataDictionary.xlsx", "col_def")
-            create_lc_data("data", "data/LCDataDictionary.xlsx", "lc_raw_data")
-        # elif option.startswith("data", "data/LCDataDictionary.xlsx"):
-        #     load_data("data")
+            create_col_def(config.dictionary_file, "col_def")
+            create_lc_data(config.data_dir, config.dictionary_file, "lc_raw_data")
+        # elif option.startswith(config.data_dir, config.dictionary_file):
+        #     load_data(config.data_dir)
         elif option.startswith("sampling"):
-            sampling("data", "data/sample.csv", random_method)
+            sampling(config.data_dir, "data/sample.csv", random_method)
         elif option.startswith("training"):
-            sampling("data", "data/traing_data.csv", closed_investment)
+            sampling(config.data_dir, "data/traing_data.csv", closed_investment)
+        elif option.startswith("map_feature"):
+            FeatureMapping.map_features("data/traing_data_small.csv")
 
 
 
