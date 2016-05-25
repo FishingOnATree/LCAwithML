@@ -5,6 +5,7 @@ import FeatureMapping
 
 import openpyxl
 import codecs
+import LCUtil
 import os
 import pymysql
 import random
@@ -169,7 +170,8 @@ else:
         elif option.startswith("training"):
             sampling(config.data_dir, "data/traing_data.csv", closed_investment)
         elif option.startswith("map_feature"):
-            FeatureMapping.map_features("data/traing_data_small.csv")
+            x, y = FeatureMapping.map_features("data/traing_data_small.csv")
+            LCUtil.save_mapped_feature(x, y)
 
 
 

@@ -105,18 +105,20 @@ def mapping(fields, col_pos_dict):
     xi.append(map_term(fields[col_pos_dict["term"]]))
     xi.append(map_verification_status(fields[col_pos_dict["verification_status_joint"]], fields[col_pos_dict["verification_status"]]))
     # 1-to-k transformation
-    xi.append((fields[col_pos_dict["purpose"]]))  # to be handled
+#    xi.append((fields[col_pos_dict["purpose"]]))  # to be handled
     xi.extend(map_purpose(fields[col_pos_dict["purpose"]]))
-    xi.append((fields[col_pos_dict["home_ownership"]]))  # to be handled
+#    xi.append((fields[col_pos_dict["home_ownership"]]))  # to be handled
     xi.extend(map_home_ownership(fields[col_pos_dict["home_ownership"]]))
     # mapping y
     yi = map_loan_status(fields[col_pos_dict["loan_status"]])
-    return xi, yi
+    return yi, xi
 
 
 def map_features(raw_data_file):
     col_pos_dict = {}
     count = 0
+    x = []
+    y = []
     with open(raw_data_file) as f:
         for line in f:
             if line.startswith("\"id\""):
@@ -126,8 +128,10 @@ def map_features(raw_data_file):
                 fields = split_raw_data(line)
                 if len(fields) > 0:
                     yi, xi = mapping(fields, col_pos_dict)
+                    x.append(xi)
+                    y.append(yi)
                     count += 1
     f.close()
-    print(count)
-
-#map_features("data/traing_data_small.csv")
+    x = np.array(x)
+    y = np.array(y)
+    return x, y
