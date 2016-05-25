@@ -132,6 +132,7 @@ def map_features(raw_data_file):
                     y.append(yi)
                     count += 1
     f.close()
+    print("%d row mapped" % count)
     x = np.array(x)
     y = np.array(y)
     return x, y

@@ -129,7 +129,7 @@ def random_method(line, col_pos_dict):
 
 
 def closed_investment(line, col_pos_dict):
-    return line[col_pos_dict["loan_status"]] in ["Charged Off", "Default", "Fully Paid", "Late (31-120 days)"]
+    return line[col_pos_dict["loan_status"]] in ["Charged Off", "Default", "Fully Paid", "Late (31-120 days)"] and random.random() <= TRAINING_DATA_RATE
 
 
 def sampling(dn, sample_file, sample_method):
@@ -154,6 +154,8 @@ def sampling(dn, sample_file, sample_method):
     print "Sampled size: %d" % len(sample_list)
 
 
+TRAINING_DATA_RATE = 0.03
+
 if len(sys.argv) < 2:
     print 'no argument'
     sys.exit()
@@ -170,7 +172,7 @@ else:
         elif option.startswith("training"):
             sampling(config.data_dir, "data/traing_data.csv", closed_investment)
         elif option.startswith("map_feature"):
-            x, y = FeatureMapping.map_features("data/traing_data_small.csv")
+            x, y = FeatureMapping.map_features("data/traing_data.csv")
             LCUtil.save_mapped_feature(x, y)
 
 

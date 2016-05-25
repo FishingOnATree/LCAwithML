@@ -24,13 +24,7 @@ def separate_training_data(x, y, trainging_ratio, cv_ratio):
     return x_train, x_cv, x_test, y_train.ravel(), y_cv.ravel(), y_test.ravel()
 
 
-def save_mapped_feature(x, y, fn="data/mapped_data"):
-    np.savez(fn, x=x, y=y)
-
-
 def cal_accuracy(y, h):
-    print(y.shape)
-    print(h.shape)
     m = len(y)
     error_count = 0.0
     count_dict = {}
@@ -39,7 +33,7 @@ def cal_accuracy(y, h):
             count_dict[tuple((y[i], h[i]))] = 0
         count_dict[tuple((y[i], h[i]))] += 1
         error_count += 0 if y[i] == h[i] else 1
-    return error_count, m ,count_dict
+    return error_count, m, count_dict
 
 
 def load_mapped_feature(fn="data/mapped_data.npz"):
@@ -47,3 +41,8 @@ def load_mapped_feature(fn="data/mapped_data.npz"):
     y = data['y']
     x = data['x']
     return x, y
+
+
+def save_mapped_feature(x, y, fn="data/mapped_data"):
+    np.savez(fn, x=x, y=y)
+
