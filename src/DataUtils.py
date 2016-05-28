@@ -174,6 +174,8 @@ else:
         elif option.startswith("map_feature"):
             x, y = FeatureMapping.map_features("data/traing_data.csv")
             LCUtil.save_mapped_feature(x, y)
-
+        elif option.startswith("random_seeds"):
+            random_seeds = [random.random() for _ in range(20000)]
+            LCUtil.save_random_seeds(random_seeds)
 
 

@@ -1,6 +1,7 @@
 __author__ = 'Rays'
 
 import LCUtil
+from sklearn import preprocessing
 from sklearn import svm
 
 
@@ -16,15 +17,21 @@ def print_results(error, size, cond_dict):
 
 
 x, y = LCUtil.load_mapped_feature()
+x_scale = preprocessing.scale(x)
+
+# use pre-saved random seeds to ensure the same train/cv/test set
+random_seeds = LCUtil.load_random_seeds()
+
+# need to normalize mean and standardization
 x_train, x_cv, x_test, y_train, y_cv, y_test = \
-    LCUtil.separate_training_data(x, y, 0.6, 0.2)
+    LCUtil.separate_training_data(x_scale, y, 0.6, 0.2, random_seeds)
 print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
 print(x_train[0, :])
 
-class_weight = {0: 1000, 1: 0.01}
-clf = svm.SVC(C=1000000., max_iter=-1, class_weight=class_weight)
-weights = clf.fit(x_train, y_train)
-print(weights)
+
+clf = svm.SVC(C=10000, max_iter=-1, cache_size=1000, class_weight={0:0.8, 1:0.2})
+clf.fit(x_train, y_train)
+
 h_train = clf.predict(x_train)
 error_train, size_train, cond_dict_train = LCUtil.cal_accuracy(y_train, h_train)
 print("Training stats: ")
