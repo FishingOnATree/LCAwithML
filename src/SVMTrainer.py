@@ -17,14 +17,18 @@ def print_results(error, size, cond_dict):
 
 
 x, y = LCUtil.load_mapped_feature()
-x_scale = preprocessing.scale(x)
 
 # use pre-saved random seeds to ensure the same train/cv/test set
 random_seeds = LCUtil.load_random_seeds()
 
 # need to normalize mean and standardization
 x_train, x_cv, x_test, y_train, y_cv, y_test = \
-    LCUtil.separate_training_data(x_scale, y, 0.6, 0.2, random_seeds)
+    LCUtil.separate_training_data(x, y, 0.6, 0.2, random_seeds)
+
+x_train = preprocessing.scale(x_train)
+x_cv = preprocessing.scale(x_cv)
+x_test = preprocessing.scale(x_test)
+
 print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
 print(x_train[0, :])
 
