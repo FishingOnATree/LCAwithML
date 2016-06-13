@@ -15,6 +15,7 @@ import sys
 drop_table_sql = u'DROP TABLE %s CASCADE; \n'
 create_table_sql = u'CREATE TABLE %s ( %s ); \n'
 config = LCCfg.LCCfg("default.cfg")
+TRAINING_DATA_RATE = 0.10
 
 
 def get_dict_sheet(fn):
@@ -125,11 +126,15 @@ def load_data(dn, def_fn):
 
 
 def random_method(line, col_pos_dict):
-    return random.random() <= 0.03
+    return random.random() <= TRAINING_DATA_RATE
 
 
 def closed_investment(line, col_pos_dict):
-    return line[col_pos_dict["loan_status"]] in ["Charged Off", "Default", "Fully Paid", "Late (31-120 days)"] and random.random() <= TRAINING_DATA_RATE
+    return line[col_pos_dict["loan_status"]] in ["Charged Off", "Default", "Fully Paid", "Late (31-120 days)"]
+
+
+def random_closed_investment(line, col_pos_dict):
+    return closed_investment(line, col_pos_dict) and random_method(line, col_pos_dict)
 
 
 def sampling(dn, sample_file, sample_method):
@@ -148,13 +153,10 @@ def sampling(dn, sample_file, sample_method):
                     if sample_method(content, col_pos_dict):
                         sample_list.append(line)
         print("Finished sampling %s" % fn)
-    #sf =  codecs.open(sample_file, mode='w', encoding='utf-8')
     f = open(sample_file, "w")
     f.writelines(sample_list)
     print "Sampled size: %d" % len(sample_list)
 
-
-TRAINING_DATA_RATE = 0.03
 
 if len(sys.argv) < 2:
     print 'no argument'
@@ -167,13 +169,17 @@ else:
             create_lc_data(config.data_dir, config.dictionary_file, "lc_raw_data")
         # elif option.startswith(config.data_dir, config.dictionary_file):
         #     load_data(config.data_dir)
-        elif option.startswith("sampling"):
-            sampling(config.data_dir, "data/sample.csv", random_method)
-        elif option.startswith("training"):
-            sampling(config.data_dir, "data/traing_data.csv", closed_investment)
-        elif option.startswith("map_feature"):
-            x, y = FeatureMapping.map_features("data/traing_data.csv")
-            LCUtil.save_mapped_feature(x, y)
+        elif option.startswith("data_gen"):
+            # generate sample training data
+            sample_data_uri = config.data_dir + "/" + config.training_sample
+            sampling(config.data_dir, sample_data_uri + ".csv", random_closed_investment)
+            x, y = FeatureMapping.map_features(sample_data_uri + ".csv")
+            LCUtil.save_mapped_feature(x, y, sample_data_uri)
+            # generate full training data
+            training_data_uri = config.data_dir + "/" + config.training_full
+            sampling(config.data_dir, training_data_uri + ".csv", closed_investment)
+            x, y = FeatureMapping.map_features(training_data_uri + ".csv")
+            LCUtil.save_mapped_feature(x, y, training_data_uri)
         elif option.startswith("random_seeds"):
             random_seeds = [random.random() for _ in range(20000)]
             LCUtil.save_random_seeds(random_seeds)

@@ -70,6 +70,7 @@ def map_home_ownership(p):
     assert sum(feature) == 1
     return feature
 
+
 def map_time_diff_in_month(issued_date_str, cr_time_str):
     if issued_date_str:
         issued_date = datetime.datetime.strptime(issued_date_str, "%b-%Y")
@@ -125,12 +126,15 @@ def map_features(raw_data_file):
                 headers = split_raw_data(line)
                 col_pos_dict = extract_col_pos_dict(headers)
             elif line.startswith("\""):
-                fields = split_raw_data(line)
-                if len(fields) > 0:
-                    yi, xi = mapping(fields, col_pos_dict)
-                    x.append(xi)
-                    y.append(yi)
-                    count += 1
+                try:
+                    fields = split_raw_data(line)
+                    if len(fields) > 0:
+                        yi, xi = mapping(fields, col_pos_dict)
+                        x.append(xi)
+                        y.append(yi)
+                        count += 1
+                except ValueError:
+                    print("ValueError")
     f.close()
     print("%d row mapped" % count)
     x = np.array(x)

@@ -19,9 +19,10 @@ class LCCfg:
         self.data_fileprefix = config.get(self.DEFAULT_SECTION, "data.fileprefix")
         self.dictionary_file = config.get(self.DEFAULT_SECTION, "dictionary.file")
         self.dictionary_dictsheet = config.get(self.DEFAULT_SECTION, "dictionary.dictsheet")
-        self.sampling_file = config.get(self.DEFAULT_SECTION, "sampling.file")
         self.sql_dir = config.get(self.DEFAULT_SECTION, "sql.dir")
         self.sql_fileextension = config.get(self.DEFAULT_SECTION, "sql.fileextension")
+        self.training_sample = config.get(self.DEFAULT_SECTION, "training.file.sample")
+        self.training_full = config.get(self.DEFAULT_SECTION, "training.file.full")
 
 config = LCCfg("default.cfg")
 print ("jdbc:mysql:%s:%s/%s  -  %s/%s " %

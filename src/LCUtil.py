@@ -15,8 +15,9 @@ def separate_training_data(x, y, trainging_ratio, cv_ratio, random_seeds):
     y_train = np.empty((0, 1))
     y_cv = np.empty((0, 1))
     y_test = np.empty((0, 1))
+    seed_len = len(random_seeds)
     for i in range(m):
-        random_seed = random_seeds[i % m]
+        random_seed = random_seeds[i % seed_len]
         if random_seed < trainging_ratio:
             x_train = np.vstack((x_train, x[i]))
             y_train = np.vstack((y_train, y[i]))
@@ -41,14 +42,14 @@ def cal_accuracy(y, h):
     return error_count, m, count_dict
 
 
-def load_mapped_feature(fn="data/mapped_data.npz"):
+def load_mapped_feature(fn):
     data = np.load(fn)
     y = data['y']
     x = data['x']
     return x, y
 
 
-def save_mapped_feature(x, y, fn="data/mapped_data"):
+def save_mapped_feature(x, y, fn):
     np.savez(fn, x=x, y=y)
 
 
