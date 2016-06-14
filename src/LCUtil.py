@@ -1,5 +1,8 @@
-import numpy as np
+import csv
 import random
+
+import numpy as np
+
 
 def separate_training_data(x, y, trainging_ratio, cv_ratio):
     print("randomly generated random seeds")
@@ -36,18 +39,6 @@ def separate_training_data(x, y, trainging_ratio, cv_ratio, random_seeds):
     return x_train, x_cv, x_test, y_train.ravel(), y_cv.ravel(), y_test.ravel()
 
 
-def cal_accuracy(y, h):
-    m = len(y)
-    error_count = 0.0
-    count_dict = {}
-    for i in range(m):
-        if tuple((y[i], h[i])) not in count_dict.keys():
-            count_dict[tuple((y[i], h[i]))] = 0
-        count_dict[tuple((y[i], h[i]))] += 1
-        error_count += 0 if y[i] == h[i] else 1
-    return error_count, m, count_dict
-
-
 def load_mapped_feature(fn):
     data = np.load(fn)
     y = data['y']
@@ -65,3 +56,15 @@ def load_random_seeds(fn="data/random_seeds.npy"):
 
 def save_random_seeds(random_seeds, fn="data/random_seeds"):
     np.save(fn, np.asarray(random_seeds))
+
+
+def save_results(headers, stats_list, fn):
+    with open(fn, "wb") as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        writer.writerow(headers)
+        for stats in stats_list:
+            row = []
+            for header in headers:
+                row.append(stats.get(header))
+            print(row)
+            writer.writerow(row)
