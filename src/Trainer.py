@@ -1,11 +1,10 @@
 from __future__ import print_function
 import LCCfg
 import LCUtil
-import NNTrain
-import SVMTrainer
+import NeuralNetworkModel
+import SVMModel
 from sklearn import preprocessing
 import sys
-
 
 
 if len(sys.argv) < 3:
@@ -23,6 +22,12 @@ else:
         # load data
         x, y = LCUtil.load_mapped_feature(training_data + ".npz")
 
+        # map polynomial features
+        poly = preprocessing.PolynomialFeatures(degree=2, interaction_only=True)
+        x = poly.fit_transform(x)
+
+        print(x.shape)
+
         # use pre-saved random seeds to ensure the same train/cv/test set
         random_seeds = LCUtil.load_random_seeds()
 
@@ -39,7 +44,9 @@ else:
         option = sys.argv[2]
         if option.startswith("nn"):
             print("NN trainer")
-            NNTrain.train(x_train, y_train, x_cv, y_cv)
+            NeuralNetworkModel.train(x_train, y_train, x_cv, y_cv)
         elif option.startswith("svm"):
             print("SVM trainer")
-            SVMTrainer.train(x_train, y_train, x_cv, y_cv)
+            SVMModel.train(x_train, y_train, x_cv, y_cv)
+
+        #TODO logging parameters, results, time. Trainer should only receive

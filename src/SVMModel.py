@@ -13,6 +13,7 @@ def print_results(error, size, cond_dict):
     print(true_pos, true_neg, false_pos, false_neg)
     print("Precision = %.4f" % (true_pos/float(true_pos+false_pos)))
     print("Recall = %.4f" % (true_pos/float(true_pos+false_neg)))
+    print("%2.2f%% bad loans predicted correctly" % (true_neg*100/float(true_neg+false_pos)))
 
 
 def train(x_train, y_train, x_cv, y_cv):
