@@ -1,7 +1,6 @@
 import numpy as np
 import random
 
-
 def separate_training_data(x, y, trainging_ratio, cv_ratio):
     print("randomly generated random seeds")
     return separate_training_data(x, y, trainging_ratio, cv_ratio, [random.random() for _ in range(x.shape[0])])
@@ -9,24 +8,31 @@ def separate_training_data(x, y, trainging_ratio, cv_ratio):
 
 def separate_training_data(x, y, trainging_ratio, cv_ratio, random_seeds):
     m, n = x.shape
-    x_train = np.empty((0, n))
-    x_cv = np.empty((0, n))
-    x_test = np.empty((0, n))
-    y_train = np.empty((0, 1))
-    y_cv = np.empty((0, 1))
-    y_test = np.empty((0, 1))
+    x_train = []
+    x_cv = []
+    x_test = []
+    y_train = []
+    y_cv = []
+    y_test = []
     seed_len = len(random_seeds)
     for i in range(m):
         random_seed = random_seeds[i % seed_len]
         if random_seed < trainging_ratio:
-            x_train = np.vstack((x_train, x[i]))
-            y_train = np.vstack((y_train, y[i]))
+            x_train.append(x[i])
+            y_train.append(y[i])
         elif random_seed < trainging_ratio+cv_ratio:
-            x_cv = np.vstack((x_cv, x[i]))
-            y_cv = np.vstack((y_cv, y[i]))
+            x_cv.append(x[i])
+            y_cv.append(y[i])
         else:
-            x_test = np.vstack((x_test, x[i]))
-            y_test = np.vstack((y_test, y[i]))
+            x_test.append(x[i])
+            y_test.append(y[i])
+
+    x_train = np.array(x_train)
+    y_train = np.array(y_train)
+    x_cv = np.array(x_cv)
+    y_cv = np.array(y_cv)
+    x_test = np.array(x_test)
+    y_test = np.array(y_test)
     return x_train, x_cv, x_test, y_train.ravel(), y_cv.ravel(), y_test.ravel()
 
 
