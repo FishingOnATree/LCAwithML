@@ -29,8 +29,6 @@ class NeuralNetworkModel(ModelBase.ModelBase):
         self.model.add(Dropout(self.drop_out_rate))
         self.model.add(Dense(output_dim=2))
         self.model.add(Activation('softmax'))
-    #    model.add(Dense(output_dim=10))
-    #    model.add(Activation('softmax'))
         # let's train the model using SGD + momentum (how original).
         sgd = SGD(lr=0.03, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss='sparse_categorical_crossentropy',
@@ -43,5 +41,12 @@ class NeuralNetworkModel(ModelBase.ModelBase):
                        shuffle=True)
 
     def predict(self, x):
-        #TODO: Fix the predict code to return a mx1 prediction result
-        return self.model.predict(x)
+        result = []
+        h = self.model.predict(x)
+        for r in h:
+            if r[0] > 0.5:
+                result.append(0)
+            else:
+                result.append(1)
+        print(result)
+        return result

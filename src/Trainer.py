@@ -38,7 +38,7 @@ def cal_accuracy(y, h):
     true_neg = count_dict[tuple((0.0, 0.0))] if tuple((0.0, 0.0)) in count_dict.keys() else 0
     false_pos = count_dict[tuple((0.0, 1.0))] if tuple((0.0, 1.0)) in count_dict.keys() else 0
     false_neg = count_dict[tuple((1.0, 0.0))] if tuple((1.0, 0.0)) in count_dict.keys() else 0
-    bad_loan_accuracy = true_neg*100/float(true_neg+false_pos)
+    bad_loan_accuracy = 0 if true_neg == 0 else true_neg*100/float(true_neg+false_pos)
     return {"tp": true_pos,
             "tn": true_neg,
             "fp": false_pos,
@@ -62,6 +62,18 @@ def train_and_validate(model, x_train, y_train, x_cv, y_cv):
     print("CV stats: ")
     print("Accuracy = %3.2f%%" % (cv_stats["accuracy"]))
     print("%2.2f%% bad loans predicted correctly" % (cv_stats["false_accuracy"]))
+    return train_stats, cv_stats
+
+
+def run_training_iteration(model, x_train, y_train, x_cv, y_cv):
+    start_time = timeit.default_timer()
+    train_stats, cv_stats = train_and_validate(model, x_train, y_train, x_cv, y_cv)
+    total_time = timeit.default_timer() - start_time
+    settings["run_time"] = total_time
+    settings["poly_degree"] = poly_degree
+    train_stats.update(settings)
+    cv_stats.update(settings)
+    print("Finished with ", settings, " in ", total_time, " sec")
     return train_stats, cv_stats
 
 
@@ -94,42 +106,36 @@ else:
         option = sys.argv[2]
         model = None
         settings = None
-
+        headers = None
+        stats_list = []
         if option.startswith("nn"):
             print("NN trainer")
             settings = {"batch_size": 32,
-                        "nb_epoch": 100,
+                        "nb_epoch": 10,
                         "hidden_unit_width": 300,
                         "drop_out_rate": 0.25}
             model = NeuralNetworkModel.NeuralNetworkModel(settings)
-            train_stats, cv_stats = train_and_validate(model, x_train, y_train, x_cv, y_cv)
-
+            train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
+            stats_list.append(train_stats)
+            stats_list.append(cv_stats)
+            headers = ["type", "poly_degree", "nb_epoch", "hidden_unit_width", "drop_out_rate",
+                       "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
         elif option.startswith("svm"):
             print("SVM trainer")
-            stats_list = []
-            # for c in [0.001, 0.01, 0.1, 1, 100, 10000, 1000000]:
-            #     for max_iter in range(50000, 800001, 150000):
-            #         for class_weights in [{0: 0.1, 1: 0.9}, {0: 0.5, 1: 0.5}, {0: 0.9, 1: 0.1}, {0: 0.97, 1: 0.03}]:
-            for c in [1]:
-                for max_iter in range(100, 201, 100):
-                    for class_weights in [{0: 0.5, 1: 0.5}]:
-                        start_time = timeit.default_timer()
+            for c in [0.0001, 0.01, 1, 100, 10000]:
+                for max_iter in range(150000, 650001, 250000):
+                    for class_weights in [{0: 0.5, 1: 0.5}, {0: 0.9, 1: 0.1}, {0: 0.97, 1: 0.03}]:
                         settings = {"C": c,
                                     "max_iter": max_iter,
                                     "cache_size": 1000,
                                     "class_weight": class_weights}
                         model = SVMModel.SVMModel(settings)
-                        train_stats, cv_stats = train_and_validate(model, x_train, y_train, x_cv, y_cv)
-                        total_time = timeit.default_timer() - start_time
-                        settings["run_time"] = total_time
-                        settings["poly_degree"] = poly_degree
-                        train_stats.update(settings)
-                        cv_stats.update(settings)
+                        train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
                         stats_list.append(train_stats)
                         stats_list.append(cv_stats)
-            time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
-            out_put_fn = config.data_dir + "/svm" + time_str + ".csv"
             headers = ["type", "poly_degree", "C", "max_iter", "cache_size", "class_weight",
                        "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
-            LCUtil.save_results(headers, stats_list, out_put_fn)
-        #TODO logging parameters, results, time. Trainer should only receive
+
+        time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
+        out_put_fn = config.data_dir + "/" + option + time_str + ".csv"
+        LCUtil.save_results(headers, stats_list, out_put_fn)

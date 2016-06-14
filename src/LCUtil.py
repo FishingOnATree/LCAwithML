@@ -66,5 +66,4 @@ def save_results(headers, stats_list, fn):
             row = []
             for header in headers:
                 row.append(stats.get(header))
-            print(row)
             writer.writerow(row)
