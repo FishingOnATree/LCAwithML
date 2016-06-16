@@ -39,6 +39,41 @@ def separate_training_data(x, y, trainging_ratio, cv_ratio, random_seeds):
     return x_train, x_cv, x_test, y_train.ravel(), y_cv.ravel(), y_test.ravel()
 
 
+def separate_training_data_file(fn, training_ratio, cv_ratio, random_seeds):
+    training = []
+    cv = []
+    test = []
+    seed_len = len(random_seeds)
+    i = 0
+    with open(fn) as f:
+        for line in f:
+            if line.startswith("\"id\""):
+                if len(training) == 0:
+                    training.append(line)
+                    cv.append(line)
+                    test.append(line)
+            elif line.startswith("\""):
+                random_seed = random_seeds[i % seed_len]
+                if random_seed < training_ratio:
+                    training.append(line)
+                elif random_seed < training_ratio+cv_ratio:
+                    cv.append(line)
+                else:
+                    test.append(line)
+                i += 1
+    write_to_file(fn, "training", training)
+    write_to_file(fn, "cv", cv)
+    write_to_file(fn, "test", test)
+
+
+def write_to_file(fn, postfix, lines):
+    sample_file = fn.replace(".csv", "_"+postfix+".csv")
+    f = open(sample_file, "w")
+    f.writelines(lines)
+    f.close()
+    print("Wrote to %s with lines(including header): %d" % (sample_file, len(lines)))
+
+
 def load_mapped_feature(fn):
     data = np.load(fn)
     y = data['y']

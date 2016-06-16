@@ -93,7 +93,7 @@ else:
         x, y = LCUtil.load_mapped_feature(training_data + ".npz")
 
         # map polynomial features
-        poly_degree = 2
+        poly_degree = 1
         poly = preprocessing.PolynomialFeatures(degree=poly_degree, interaction_only=True)
         x = poly.fit_transform(x)
         print(x.shape)
@@ -102,7 +102,6 @@ else:
         x_train, x_cv, x_test, y_train, y_cv, y_test, scaler = data_preprocess(x, y)
 
         print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
-        print(x_train[0, :])
         option = sys.argv[2]
         model = None
         settings = None
@@ -110,24 +109,28 @@ else:
         stats_list = []
         if option.startswith("nn"):
             print("NN trainer")
-            settings = {"batch_size": 32,
-                        "nb_epoch": 10,
-                        "hidden_unit_width": 300,
-                        "drop_out_rate": 0.25}
-            model = NeuralNetworkModel.NeuralNetworkModel(settings)
-            train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
-            stats_list.append(train_stats)
-            stats_list.append(cv_stats)
+            for nb_epoch in [50, 70, 90]:
+                for hidden_unit_width in [300, 500]:
+                    for drop_out_rate in [0, 0.25]:
+                        settings = {"batch_size": 32,
+                                    "nb_epoch": nb_epoch,
+                                    "hidden_unit_width": hidden_unit_width,
+                                    "drop_out_rate": drop_out_rate}
+                        model = NeuralNetworkModel.NeuralNetworkModel(settings)
+                        train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
+                        stats_list.append(train_stats)
+                        stats_list.append(cv_stats)
             headers = ["type", "poly_degree", "nb_epoch", "hidden_unit_width", "drop_out_rate",
                        "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
         elif option.startswith("svm"):
             print("SVM trainer")
-            for c in [0.0001, 0.01, 1, 100, 10000]:
-                for max_iter in range(150000, 650001, 250000):
-                    for class_weights in [{0: 0.5, 1: 0.5}, {0: 0.9, 1: 0.1}, {0: 0.97, 1: 0.03}]:
+            for c in [1]:
+                for max_iter in range(65000, 75001, 2000):
+#                for max_iter in range(40000, 80001, 10000):
+                    for class_weights in [{0: 0.75, 1: 0.25}]:
                         settings = {"C": c,
                                     "max_iter": max_iter,
-                                    "cache_size": 1000,
+                                    "cache_size": 10000,
                                     "class_weight": class_weights}
                         model = SVMModel.SVMModel(settings)
                         train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
@@ -137,5 +140,5 @@ else:
                        "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
 
         time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
-        out_put_fn = config.data_dir + "/" + option + time_str + ".csv"
+        out_put_fn = config.data_dir + "/" + option + time_str + "_" + sys.argv[1] + ".csv"
         LCUtil.save_results(headers, stats_list, out_put_fn)

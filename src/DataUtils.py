@@ -155,6 +155,7 @@ def sampling(dn, sample_file, sample_method):
         print("Finished sampling %s" % fn)
     f = open(sample_file, "w")
     f.writelines(sample_list)
+    f.close()
     print "Sampled size: %d" % len(sample_list)
 
 
@@ -167,8 +168,6 @@ else:
         if option.startswith("sql"):
             create_col_def(config.dictionary_file, "col_def")
             create_lc_data(config.data_dir, config.dictionary_file, "lc_raw_data")
-        # elif option.startswith(config.data_dir, config.dictionary_file):
-        #     load_data(config.data_dir)
         elif option.startswith("data_gen"):
             # generate sample training data
             sample_data_uri = config.data_dir + "/" + config.training_sample
@@ -180,6 +179,11 @@ else:
             sampling(config.data_dir, training_data_uri + ".csv", closed_investment)
             x, y = FeatureMapping.map_features(training_data_uri + ".csv")
             LCUtil.save_mapped_feature(x, y, training_data_uri)
+        elif option.startswith("seperate_data_file"):
+            # use pre-saved random seeds to ensure the same train/cv/test set
+            random_seeds = LCUtil.load_random_seeds()
+            sample_data_uri = config.data_dir + "/" + config.training_sample + ".csv"
+            LCUtil.separate_training_data_file(sample_data_uri, 0.6, 0.2, random_seeds)
         elif option.startswith("random_seeds"):
             random_seeds = [random.random() for _ in range(20000)]
             LCUtil.save_random_seeds(random_seeds)
