@@ -8,20 +8,20 @@ from sklearn import preprocessing
 
 import LCCfg
 import LCUtil
-from models import SVMModel, NeuralNetworkModel
+from models import SVMModel #, NeuralNetworkModel
+from sklearn.externals import joblib
 
 
 def data_preprocess(x, y):
     # use pre-saved random seeds to ensure the same train/cv/test set
     random_seeds = LCUtil.load_random_seeds()
-
     xtrain, xcv, xtest, ytrain, ycv, ytest = \
         LCUtil.separate_training_data(x, y, 0.6, 0.2, random_seeds)
     scaler = preprocessing.StandardScaler().fit(xtrain)
     xtrain = scaler.transform(xtrain)
     xcv = scaler.transform(xcv)
     xtest = scaler.transform(xtest)
-    return xtrain, xcv, xtest, ytrain, ycv, ytest, scaler
+    return xtrain, xcv, xtest, ytrain, ycv, ytest
 
 
 def cal_accuracy(y, h):
@@ -47,34 +47,74 @@ def cal_accuracy(y, h):
             "false_accuracy": bad_loan_accuracy}
 
 
-def train_and_validate(model, x_train, y_train, x_cv, y_cv):
-    model.train(x_train, y_train, x_cv, y_cv)
-    h_train = model.predict(x_train)
-    h_cv = model.predict(x_cv)
-    train_stats = cal_accuracy(y_train, h_train)
-    train_stats["type"] = "training"
-    print("Training stats: ")
+def validate_prediction(model, x_data, y_data, settings, traing_type):
+    h_train = model.predict(x_data)
+    train_stats = cal_accuracy(y_data, h_train)
+    train_stats["type"] = traing_type
+    train_stats.update(settings)
+    print("%s stats: " % traing_type)
     print("Accuracy = %3.2f%%" % (train_stats["accuracy"]))
     print("%2.2f%% bad loans predicted correctly" % (train_stats["false_accuracy"]))
-
-    cv_stats = cal_accuracy(y_cv, h_cv)
-    cv_stats["type"] = "cv"
-    print("CV stats: ")
-    print("Accuracy = %3.2f%%" % (cv_stats["accuracy"]))
-    print("%2.2f%% bad loans predicted correctly" % (cv_stats["false_accuracy"]))
-    return train_stats, cv_stats
+    return train_stats
 
 
-def run_training_iteration(model, x_train, y_train, x_cv, y_cv):
-    start_time = timeit.default_timer()
-    train_stats, cv_stats = train_and_validate(model, x_train, y_train, x_cv, y_cv)
-    total_time = timeit.default_timer() - start_time
-    settings["run_time"] = total_time
-    settings["poly_degree"] = poly_degree
-    train_stats.update(settings)
-    cv_stats.update(settings)
-    print("Finished with ", settings, " in ", total_time, " sec")
-    return train_stats, cv_stats
+def train(data_file, weight_file):
+    # load data
+    x, y = LCUtil.load_mapped_feature(data_file)
+    # map polynomial features
+    poly_degree = 1
+    poly = preprocessing.PolynomialFeatures(degree=poly_degree, interaction_only=True)
+    x = poly.fit_transform(x)
+    print(x.shape)
+    # need to normalize mean and standardization
+    x_train, x_cv, x_test, y_train, y_cv, y_test = data_preprocess(x, y)
+
+    print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
+    stats_list = []
+    print("SVM trainer")
+    model = None
+    for c in [1]:
+        for max_iter in [6000]: #, 45000, 50000, 55000, 60000]:
+            for class_weights in [{0: 0.75, 1: 0.25}]:
+                settings = {"C": c,
+                            "max_iter": max_iter,
+                            "cache_size": 10000,
+                            "class_weight": class_weights}
+                model = SVMModel.SVMModel(settings)
+                start_time = timeit.default_timer()
+                model.train(x_train, y_train, x_cv, y_cv)
+                total_time = timeit.default_timer() - start_time
+                print("Training finished with ", settings, " in ", total_time, " sec")
+                # record settings
+                settings["run_time"] = total_time
+                settings["poly_degree"] = poly_degree
+                train_stats = validate_prediction(model, x_train, y_train, settings, "training")
+                stats_list.append(train_stats)
+                cv_stats = validate_prediction(model, x_cv, y_cv, settings, "cv")
+                stats_list.append(cv_stats)
+    headers = ["type", "poly_degree", "C", "max_iter", "cache_size", "class_weight",
+               "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
+
+    time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
+    out_put_fn = config.data_dir + "/" + time_str + ".csv"
+    LCUtil.save_results(headers, stats_list, out_put_fn)
+    # save final weight
+    joblib.dump(model, weight_file)
+
+
+def predict(data_file, weight_file):
+    model = joblib.load(weight_file)
+    # load data
+    x, y = LCUtil.load_mapped_feature(data_file)
+    # map polynomial features
+    poly_degree = 1
+    poly = preprocessing.PolynomialFeatures(degree=poly_degree, interaction_only=True)
+    x = poly.fit_transform(x)
+    print(x.shape)
+    # need to normalize mean and standardization
+    x_train, x_cv, x_test, y_train, y_cv, y_test = data_preprocess(x, y)
+    stats = validate_prediction(model, x_test, y_test, {}, "test")
+    print(stats)
 
 
 if len(sys.argv) < 3:
@@ -82,63 +122,14 @@ if len(sys.argv) < 3:
     sys.exit()
 else:
     config = LCCfg.LCCfg("default.cfg")
+    is_trainging = True if sys.argv[1] == "train" else False
     # use sample data by default
-    if sys.argv[1] == "full":
-        training_data = config.data_dir + "/" + config.training_full
+    data_file = config.data_dir + "/" + sys.argv[2]
+    weight_file = config.data_dir + "/" + sys.argv[3]
+
+    if is_trainging:
+        train(data_file, weight_file)
     else:
-        training_data = config.data_dir + "/" + config.training_sample
+        predict(data_file, weight_file)
 
-    if sys.argv[2] in ("nn", "svm"):
-        # load data
-        x, y = LCUtil.load_mapped_feature(training_data + ".npz")
 
-        # map polynomial features
-        poly_degree = 1
-        poly = preprocessing.PolynomialFeatures(degree=poly_degree, interaction_only=True)
-        x = poly.fit_transform(x)
-        print(x.shape)
-
-        # need to normalize mean and standardization
-        x_train, x_cv, x_test, y_train, y_cv, y_test, scaler = data_preprocess(x, y)
-
-        print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
-        option = sys.argv[2]
-        model = None
-        settings = None
-        headers = None
-        stats_list = []
-        if option.startswith("nn"):
-            print("NN trainer")
-            for nb_epoch in [50, 70, 90]:
-                for hidden_unit_width in [300, 500]:
-                    for drop_out_rate in [0, 0.25]:
-                        settings = {"batch_size": 32,
-                                    "nb_epoch": nb_epoch,
-                                    "hidden_unit_width": hidden_unit_width,
-                                    "drop_out_rate": drop_out_rate}
-                        model = NeuralNetworkModel.NeuralNetworkModel(settings)
-                        train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
-                        stats_list.append(train_stats)
-                        stats_list.append(cv_stats)
-            headers = ["type", "poly_degree", "nb_epoch", "hidden_unit_width", "drop_out_rate",
-                       "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
-        elif option.startswith("svm"):
-            print("SVM trainer")
-            for c in [1]:
-                for max_iter in range(65000, 75001, 2000):
-#                for max_iter in range(40000, 80001, 10000):
-                    for class_weights in [{0: 0.75, 1: 0.25}]:
-                        settings = {"C": c,
-                                    "max_iter": max_iter,
-                                    "cache_size": 10000,
-                                    "class_weight": class_weights}
-                        model = SVMModel.SVMModel(settings)
-                        train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv)
-                        stats_list.append(train_stats)
-                        stats_list.append(cv_stats)
-            headers = ["type", "poly_degree", "C", "max_iter", "cache_size", "class_weight",
-                       "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
-
-        time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
-        out_put_fn = config.data_dir + "/" + option + time_str + "_" + sys.argv[1] + ".csv"
-        LCUtil.save_results(headers, stats_list, out_put_fn)

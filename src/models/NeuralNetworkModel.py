@@ -50,3 +50,18 @@ class NeuralNetworkModel(ModelBase.ModelBase):
                 result.append(1)
         print(result)
         return result
+
+    #     print("NN trainer")
+    #     for nb_epoch in [50, 70, 90]:
+    #         for hidden_unit_width in [300, 500]:
+    #             for drop_out_rate in [0, 0.25]:
+    #                 settings = {"batch_size": 32,
+    #                             "nb_epoch": nb_epoch,
+    #                             "hidden_unit_width": hidden_unit_width,
+    #                             "drop_out_rate": drop_out_rate}
+    #                 model = NeuralNetworkModel.NeuralNetworkModel(settings)
+    #                 train_stats, cv_stats = run_training_iteration(model, x_train, y_train, x_cv, y_cv, poly_degree, settings)
+    #                 stats_list.append(train_stats)
+    #                 stats_list.append(cv_stats)
+    #     headers = ["type", "poly_degree", "nb_epoch", "hidden_unit_width", "drop_out_rate",
+    #                "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
