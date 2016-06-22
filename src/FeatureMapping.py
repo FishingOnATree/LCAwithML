@@ -1,15 +1,19 @@
 __author__ = 'Rays'
 
+import csv
 import datetime
 import numpy as np
+import pandas as pd
 import re
 
 
 GRADE_DICT = {'A': 6, 'B': 5, 'C': 4, 'D': 3, 'E': 2, 'F': 1, 'G': 0}
+HOME_OWNERSHIP_LIST = ["OWN", "RENT", "MORTGAGE", "OTHER"]
 PURPOSE_LIST = ["car", "credit_card", "debt_consolidation", "educational", "home_improvement", "house",
                 "major_purchase", "medical", "moving", "other", "renewable_energy", "small_business",
                 "vacation", "wedding"]
-HOME_OWNERSHIP_LIST = ["OWN", "RENT", "MORTGAGE", "OTHER"]
+VERIFIED_STATUS = ["Verified", "Source Verified"]
+
 
 def extract_col_pos_dict(headers):
     return {h: i for i, h in enumerate(headers)}
@@ -33,7 +37,7 @@ def map_two_number(x1, x2, num_type):
 
 
 def map_verification_status(x1, x2):
-    if x1 or x2 in ["Verified", "Source Verified"]:
+    if x1 in VERIFIED_STATUS or x2 in VERIFIED_STATUS:
         return 1
     else:
         return 0
@@ -41,9 +45,9 @@ def map_verification_status(x1, x2):
 
 def map_term(x):
     if x.strip().startswith("60"):
-        return 1
+        return 60
     else:
-        return 0
+        return 36
 
 
 def map_emp_length(x):
@@ -115,6 +119,81 @@ def mapping(fields, col_pos_dict):
     return yi, xi
 
 
+def map_dti(row):
+    if not pd.isnull(row["dti_joint"]):
+        result = row["dti_joint"]
+    elif not pd.isnull(row["dti"]):
+        result = row["dti"]
+    else:
+        result = 0
+    return result
+
+
+def map_credit_length(row):
+    #TODO - when read CSV, we can use a default date parser to parse date
+    if row["issue_d"]:
+        issued_date = datetime.datetime.strptime(row["issue_d"], "%b-%Y")
+    else:
+        issued_date = datetime.now()
+    cr_time = datetime.datetime.strptime(row["earliest_cr_line"], "%b-%Y")
+    return (issued_date.year - cr_time.year) * 12 + issued_date.month - cr_time.month
+
+
+def map_verify_status(row):
+    if row["verification_status_joint"] in VERIFIED_STATUS or row["verification_status"] in VERIFIED_STATUS:
+        return 1
+    else:
+        return 0
+
+X_COLUMNS = ["acc_now_delinq", "annual_inc", "collections_12_mths_ex_med", "delinq_2yrs",
+             "fico_range_high", "fico_range_low", "inq_last_6mths", "loan_amnt", "mths_since_last_delinq",
+             "mths_since_last_major_derog", "mths_since_last_record", "open_acc", "pub_rec", "total_acc",
+             "dti_new", "grade_new", "credit_history_in_month", "emp_length_new", "verify_status", "term"]
+
+
+
+def load_data(raw_data_file):
+    df = pd.read_csv(raw_data_file, sep=",", engine="python", quoting=csv.QUOTE_ALL)
+    df = df.rename(columns={"\"id": "id"})
+
+    # X recalculated terms
+    df["dti_new"] = df.apply(map_dti, axis=1)
+    df["grade_new"] = df["grade"].map(GRADE_DICT)
+    df["credit_history_in_month"] = df.apply(map_credit_length, axis=1)
+    df["emp_length_new"] = df["emp_length"].map(map_emp_length)
+    df["verify_status"] = df.apply(map_verify_status, axis=1)
+    df["revol_util"].replace('%','',regex=True).astype('float')/100
+    ## need to replace isnull, NaN, "null"
+    ## TODO replace them with a good NEVER-HAPPENED value... one idea is to use negative credit history in months
+    map_na_by_correlation(df, "credit_history_in_month", "mths_since_last_delinq", -1)
+    map_na_by_correlation(df, "credit_history_in_month", "mths_since_last_major_derog", -1)
+    map_na_by_correlation(df, "credit_history_in_month", "mths_since_last_record", -1)
+    map_na_by_correlation(df, "credit_history_in_month", "mths_since_recent_revol_delinq", -1)
+    df["term"] = df["term"].map(map_term)
+    # Y
+    df["loan_status"] = df["loan_status"].map(map_loan_status)
+
+    # TODO drop NA to have more features available
+    # df = df[np.isfinite(df["total_rev_hi_lim"])]
+    #re-order column names for easier processing
+    df = df.reindex_axis(sorted(df.columns), axis=1)
+    return df
+
+
+def map_na_by_correlation(df, source_col, target_col, correlation):
+    index = df[target_col].isnull()
+    df.loc[index, target_col] = df.loc[index, source_col]*correlation
+
+
+def map_features_new(df):
+    #TODO one-hot encoding
+    x = df[X_COLUMNS].values
+    home_ownership_features = df["home_ownership"].map(map_home_ownership)
+    purpose_features = df["purpose"].map(map_purpose)
+    y = df["loan_status"].values
+    return x, y
+
+
 def map_features(raw_data_file):
     col_pos_dict = {}
     count = 0
@@ -135,7 +214,6 @@ def map_features(raw_data_file):
                         count += 1
                 except ValueError:
                     print("ValueError")
-    f.close()
     print("%d row mapped" % count)
     x = np.array(x)
     y = np.array(y)
