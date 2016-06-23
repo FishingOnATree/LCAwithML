@@ -23,38 +23,22 @@ X_COLUMNS = ["acc_now_delinq", "acc_open_past_24mths", "annual_inc", "avg_cur_ba
              "percent_bc_gt_75", "pub_rec_bankruptcies", "total_acc", "revol_bal",
              "tax_liens", "term", "tot_coll_amt", "tot_cur_bal", "tot_hi_cred_lim",
              "total_acc", "total_rev_hi_lim", "verify_status"]
-PURPOSE_LIST = ["car", "credit_card", "debt_consolidation", "educational", "home_improvement", "house",
-                "major_purchase", "medical", "moving", "other", "renewable_energy", "small_business",
-                "vacation", "wedding"]
+PURPOSE_LIST = [("car", "Car financing"),
+                ("credit_card",  "Credit card refinancing"),
+                ("debt_consolidation", "Debt consolidation"),
+                ("educational", ""),
+                ("home_improvement", "Home improvement"),
+                ("house", "Home buying"),
+                ("major_purchase", "Major purchase"),
+                ("medical", "Medical expenses"),
+                ("moving", "Moving and relocation"),
+                ("other", "Other"),
+                ("renewable_energy", ""),
+                ("small_business", "Business"),
+                ("vacation", "Vacation"),
+                ("wedding", "Wedding expenses")]
+
 VERIFIED_STATUS = ["Verified", "Source Verified"]
-
-
-def extract_col_pos_dict(headers):
-    return {h: i for i, h in enumerate(headers)}
-
-
-def split_raw_data(line):
-    return line.replace("\n", "").split("\",\"")
-
-
-def map_number(x, num_type):
-    return num_type(x) if x else num_type(0)
-
-
-def map_two_number(x1, x2, num_type):
-    if x2:
-        return num_type(x2)
-    elif x1:
-        return num_type(x1)
-    else:
-        num_type(0)
-
-
-def map_verification_status(x1, x2):
-    if x1 in VERIFIED_STATUS or x2 in VERIFIED_STATUS:
-        return 1
-    else:
-        return 0
 
 
 def map_term(x):
@@ -77,7 +61,7 @@ def map_loan_status(y):
 
 
 def map_purpose(p):
-    feature = [1 if x == p else 0 for x in PURPOSE_LIST]
+    feature = [1 if p in x else 0 for x in PURPOSE_LIST]
     assert sum(feature) == 1
     return feature
 
@@ -97,50 +81,6 @@ def map_home_ownership(p):
     return feature
 
 
-def map_time_diff_in_month(issued_date_str, cr_time_str):
-    if issued_date_str:
-        issued_date = datetime.datetime.strptime(issued_date_str, "%b-%Y")
-    else:
-        issued_date = datetime.today()
-    cr_time = datetime.datetime.strptime(cr_time_str, "%b-%Y")
-    return (issued_date.year - cr_time.year) * 12 + issued_date.month - cr_time.month
-
-
-def mapping(fields, col_pos_dict):
-    xi = list()
-    # numerical values in raw files, x1 - x16
-    xi.append(map_number(fields[col_pos_dict["acc_now_delinq"]], int))
-    xi.append(map_number(fields[col_pos_dict["all_util"]], float))
-    xi.append(map_number(fields[col_pos_dict["annual_inc"]], float))
-    xi.append(map_number(fields[col_pos_dict["collections_12_mths_ex_med"]], int))
-    xi.append(map_number(fields[col_pos_dict["delinq_2yrs"]], int))
-    xi.append(map_two_number(fields[col_pos_dict["dti_joint"]], fields[col_pos_dict["dti"]], float))
-    xi.append(map_number(fields[col_pos_dict["fico_range_high"]], int))
-    xi.append(map_number(fields[col_pos_dict["fico_range_low"]], int))
-    xi.append(map_number(fields[col_pos_dict["inq_last_6mths"]], int))
-    xi.append(map_number(fields[col_pos_dict["loan_amnt"]], float))
-    xi.append(map_number(fields[col_pos_dict["mths_since_last_delinq"]], int))
-    xi.append(map_number(fields[col_pos_dict["mths_since_last_major_derog"]], int))
-    xi.append(map_number(fields[col_pos_dict["mths_since_last_record"]], int))
-    xi.append(map_number(fields[col_pos_dict["open_acc"]], int))
-    xi.append(map_number(fields[col_pos_dict["pub_rec"]], int))
-    xi.append(map_number(fields[col_pos_dict["total_acc"]], int))
-    # direct transformation, x17 - x22
-    xi.append(GRADE_DICT[fields[col_pos_dict["grade"]]])
-    xi.append(map_time_diff_in_month(fields[col_pos_dict["issue_d"]], fields[col_pos_dict["earliest_cr_line"]]))
-    xi.append(map_emp_length(fields[col_pos_dict["emp_length"]]))
-    xi.append(map_term(fields[col_pos_dict["term"]]))
-    xi.append(map_verification_status(fields[col_pos_dict["verification_status_joint"]], fields[col_pos_dict["verification_status"]]))
-    # 1-to-k transformation
-#    xi.append((fields[col_pos_dict["purpose"]]))  # to be handled
-    xi.extend(map_purpose(fields[col_pos_dict["purpose"]]))
-#    xi.append((fields[col_pos_dict["home_ownership"]]))  # to be handled
-    xi.extend(map_home_ownership(fields[col_pos_dict["home_ownership"]]))
-    # mapping y
-    yi = map_loan_status(fields[col_pos_dict["loan_status"]])
-    return yi, xi
-
-
 def map_dti(row):
     if not pd.isnull(row["dti_joint"]):
         result = row["dti_joint"]
@@ -157,7 +97,6 @@ def map_credit_length(row):
 
 def map_verify_status(row):
     # because LC doesn't have the same column name for historical and new loan data, we have to hack it.
-
     if "verification_status" in row and row["verification_status"] in VERIFIED_STATUS:
         return 1
     else:
@@ -228,10 +167,11 @@ def map_na_by_correlation(df, source_col, target_col, correlation):
 
 
 def shape_list(data, data_ref_list):
+    print(len(data[0]))
     return np.asarray(list(itertools.chain(*data))).reshape(data.shape[0], len(data_ref_list))
 
 
-def map_features_new(df):
+def map_features(df):
     x = np.append(df[X_COLUMNS].values,
                   shape_list(df["home_ownership"].map(map_home_ownership).values, HOME_OWNERSHIP_LIST),
                   axis=1)
@@ -239,30 +179,4 @@ def map_features_new(df):
                   shape_list(df["purpose"].map(map_purpose).values, PURPOSE_LIST),
                   axis=1)
     y = df["loan_status"].values
-    return x, y
-
-
-def map_features(raw_data_file):
-    col_pos_dict = {}
-    count = 0
-    x = []
-    y = []
-    with open(raw_data_file) as f:
-        for line in f:
-            if line.startswith("\"id\""):
-                headers = split_raw_data(line)
-                col_pos_dict = extract_col_pos_dict(headers)
-            elif line.startswith("\""):
-                try:
-                    fields = split_raw_data(line)
-                    if len(fields) > 0:
-                        yi, xi = mapping(fields, col_pos_dict)
-                        x.append(xi)
-                        y.append(yi)
-                        count += 1
-                except ValueError:
-                    print("ValueError")
-    print("%d row mapped" % count)
-    x = np.array(x)
-    y = np.array(y)
     return x, y
