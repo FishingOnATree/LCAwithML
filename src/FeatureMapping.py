@@ -109,11 +109,18 @@ def map_verify_status(row):
 def map_dates(content):
     try:
         # format for historical data
-        date = datetime.datetime.strptime(content, "%b-%y")
+        date = datetime.datetime.strptime(content, "%b-%Y")
     except ValueError:
         # format for new loans
         date = datetime.datetime.strptime(content, "%m-%d-%Y %H:%M:%S")
     return date
+
+
+def map_percent(s):
+    if isinstance(s, basestring):
+        return float(s.strip('%'))/100
+    else:
+        return float(s)
 
 
 def load_data(raw_data_file):
@@ -128,7 +135,8 @@ def load_data(raw_data_file):
     # fix existing data
     df["bc_open_to_buy"] = df["bc_open_to_buy"].fillna(0.0)
     df["bc_util"] = df["bc_util"].fillna(100.0)
-    #df["revol_util"] = df["revol_util"].replace('%', '', regex=True).astype('float')/100
+    df["int_rate"] = df["int_rate"].map(map_percent)
+    # df["revol_util"] = df["revol_util"].map(map_percent)
     df["mo_sin_old_il_acct"] = df["mo_sin_old_il_acct"].fillna(-1)
 
     # diff format for historical and current
@@ -167,8 +175,7 @@ def map_na_by_correlation(df, source_col, target_col, correlation):
 
 
 def shape_list(data, data_ref_list):
-    print(len(data[0]))
-    return np.asarray(list(itertools.chain(*data))).reshape(data.shape[0], len(data_ref_list))
+    return np.asarray(list(itertools.chain(*data))).reshape(data.shape[0], len(data[0]))
 
 
 def map_features(df):
