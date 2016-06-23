@@ -4,11 +4,25 @@ import csv
 import datetime
 import numpy as np
 import pandas as pd
+import itertools
 import re
 
 
 GRADE_DICT = {'A': 6, 'B': 5, 'C': 4, 'D': 3, 'E': 2, 'F': 1, 'G': 0}
 HOME_OWNERSHIP_LIST = ["OWN", "RENT", "MORTGAGE", "OTHER"]
+X_COLUMNS = ["acc_now_delinq", "acc_open_past_24mths", "annual_inc", "avg_cur_bal",
+             "collections_12_mths_ex_med", "credit_history_in_month", "delinq_2yrs", "delinq_amnt", "dti_new",
+             "emp_length_new", "fico_range_high", "fico_range_low", "inq_last_6mths",
+             "loan_amnt", "grade_new", "inq_last_6mths", "installment",
+             "int_rate", "loan_amnt", "mo_sin_old_il_acct", "mo_sin_old_rev_tl_op",
+             "mo_sin_rcnt_rev_tl_op", "mo_sin_rcnt_tl", "mort_acc", "mths_since_last_delinq",
+             "mths_since_last_major_derog", "mths_since_last_record", "mths_since_recent_revol_delinq", "num_actv_bc_tl",
+             "num_actv_rev_tl", "num_bc_sats", "num_bc_tl", "num_il_tl", "num_op_rev_tl",
+             "num_rev_accts", "num_rev_tl_bal_gt_0", "num_sats", "num_tl_30dpd",
+             "num_tl_90g_dpd_24m", "num_tl_op_past_12m", "open_acc", "pct_tl_nvr_dlq",
+             "percent_bc_gt_75", "pub_rec_bankruptcies", "total_acc", "revol_bal",
+             "tax_liens", "term", "tot_coll_amt", "tot_cur_bal", "tot_hi_cred_lim",
+             "total_acc", "total_rev_hi_lim", "verify_status"]
 PURPOSE_LIST = ["car", "credit_card", "debt_consolidation", "educational", "home_improvement", "house",
                 "major_purchase", "medical", "moving", "other", "renewable_energy", "small_business",
                 "vacation", "wedding"]
@@ -44,7 +58,7 @@ def map_verification_status(x1, x2):
 
 
 def map_term(x):
-    if x.strip().startswith("60"):
+    if str(x).strip().startswith("60"):
         return 60
     else:
         return 36
@@ -69,6 +83,14 @@ def map_purpose(p):
 
 
 def map_home_ownership(p):
+    # this works but if we use: DictEncoding:
+    # HOME_OWNERSHIP_TYPE = [{"home_ownership": "OWN"},
+    #                    {"home_ownership": "RENT"},
+    #                    {"home_ownership": "MORTGAGE"},
+    #                    {"home_ownership": "OTHER"}]
+    # v = DictVectorizer(sparse=False)
+    # X = v.fit_transform(HOME_OWNERSHIP_TYPE)
+    #v.transform({"home_ownership":"OWN"})
     status = "OTHER" if p not in HOME_OWNERSHIP_LIST else p
     feature = [1 if x == status else 0 for x in HOME_OWNERSHIP_LIST]
     assert sum(feature) == 1
@@ -130,31 +152,53 @@ def map_dti(row):
 
 
 def map_credit_length(row):
-    #TODO - when read CSV, we can use a default date parser to parse date
-    if row["issue_d"]:
-        issued_date = datetime.datetime.strptime(row["issue_d"], "%b-%Y")
-    else:
-        issued_date = datetime.now()
-    cr_time = datetime.datetime.strptime(row["earliest_cr_line"], "%b-%Y")
-    return (issued_date.year - cr_time.year) * 12 + issued_date.month - cr_time.month
+    return (row["issue_d"].year - row["earliest_cr_line"].year) * 12 + row["issue_d"].month - row["earliest_cr_line"].month
 
 
 def map_verify_status(row):
-    if row["verification_status_joint"] in VERIFIED_STATUS or row["verification_status"] in VERIFIED_STATUS:
+    # because LC doesn't have the same column name for historical and new loan data, we have to hack it.
+
+    if "verification_status" in row and row["verification_status"] in VERIFIED_STATUS:
         return 1
     else:
-        return 0
+        if ("verification_status_joint" in row and row["verification_status_joint"] in VERIFIED_STATUS) or \
+                ("verified_status_joint" in row and row["verified_status_joint"] in VERIFIED_STATUS):
+            return 1
+    return 0
 
-X_COLUMNS = ["acc_now_delinq", "annual_inc", "collections_12_mths_ex_med", "delinq_2yrs",
-             "fico_range_high", "fico_range_low", "inq_last_6mths", "loan_amnt", "mths_since_last_delinq",
-             "mths_since_last_major_derog", "mths_since_last_record", "open_acc", "pub_rec", "total_acc",
-             "dti_new", "grade_new", "credit_history_in_month", "emp_length_new", "verify_status", "term"]
 
+def map_dates(content):
+    try:
+        # format for historical data
+        date = datetime.datetime.strptime(content, "%b-%y")
+    except ValueError:
+        # format for new loans
+        date = datetime.datetime.strptime(content, "%m-%d-%Y %H:%M:%S")
+    return date
 
 
 def load_data(raw_data_file):
     df = pd.read_csv(raw_data_file, sep=",", engine="python", quoting=csv.QUOTE_ALL)
-    df = df.rename(columns={"\"id": "id"})
+
+    # drop NA to have more features available without tot_cur_bal -
+    #       idea is we don't lend to those we don't know how much he owes outside
+    df = df[np.isfinite(df["tot_cur_bal"])]
+    df = df[np.isfinite(df["pct_tl_nvr_dlq"])]
+    df = df[np.isfinite(df["percent_bc_gt_75"])]
+
+    # fix existing data
+    df["bc_open_to_buy"] = df["bc_open_to_buy"].fillna(0.0)
+    df["bc_util"] = df["bc_util"].fillna(100.0)
+    #df["revol_util"] = df["revol_util"].replace('%', '', regex=True).astype('float')/100
+    df["mo_sin_old_il_acct"] = df["mo_sin_old_il_acct"].fillna(-1)
+
+    # diff format for historical and current
+    df["earliest_cr_line"] = df["earliest_cr_line"].map(map_dates)
+    # issue_d N/A in new loans, but we just need it to calculate credit_history
+    if "issue_d" in df:
+        df["issue_d"] = df["issue_d"].map(map_dates)
+    else:
+        df["issue_d"] = datetime.datetime.today()
 
     # X recalculated terms
     df["dti_new"] = df.apply(map_dti, axis=1)
@@ -162,19 +206,17 @@ def load_data(raw_data_file):
     df["credit_history_in_month"] = df.apply(map_credit_length, axis=1)
     df["emp_length_new"] = df["emp_length"].map(map_emp_length)
     df["verify_status"] = df.apply(map_verify_status, axis=1)
-    df["revol_util"].replace('%','',regex=True).astype('float')/100
-    ## need to replace isnull, NaN, "null"
-    ## TODO replace them with a good NEVER-HAPPENED value... one idea is to use negative credit history in months
     map_na_by_correlation(df, "credit_history_in_month", "mths_since_last_delinq", -1)
     map_na_by_correlation(df, "credit_history_in_month", "mths_since_last_major_derog", -1)
     map_na_by_correlation(df, "credit_history_in_month", "mths_since_last_record", -1)
     map_na_by_correlation(df, "credit_history_in_month", "mths_since_recent_revol_delinq", -1)
     df["term"] = df["term"].map(map_term)
     # Y
-    df["loan_status"] = df["loan_status"].map(map_loan_status)
+    if "loan_status" not in df:
+        df["loan_status"] = -1
+    else:
+        df["loan_status"] = df["loan_status"].map(map_loan_status)
 
-    # TODO drop NA to have more features available
-    # df = df[np.isfinite(df["total_rev_hi_lim"])]
     #re-order column names for easier processing
     df = df.reindex_axis(sorted(df.columns), axis=1)
     return df
@@ -185,11 +227,17 @@ def map_na_by_correlation(df, source_col, target_col, correlation):
     df.loc[index, target_col] = df.loc[index, source_col]*correlation
 
 
+def shape_list(data, data_ref_list):
+    return np.asarray(list(itertools.chain(*data))).reshape(data.shape[0], len(data_ref_list))
+
+
 def map_features_new(df):
-    #TODO one-hot encoding
-    x = df[X_COLUMNS].values
-    home_ownership_features = df["home_ownership"].map(map_home_ownership)
-    purpose_features = df["purpose"].map(map_purpose)
+    x = np.append(df[X_COLUMNS].values,
+                  shape_list(df["home_ownership"].map(map_home_ownership).values, HOME_OWNERSHIP_LIST),
+                  axis=1)
+    x = np.append(x,
+                  shape_list(df["purpose"].map(map_purpose).values, PURPOSE_LIST),
+                  axis=1)
     y = df["loan_status"].values
     return x, y
 
