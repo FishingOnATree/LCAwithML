@@ -1,15 +1,15 @@
 __author__ = 'Rays'
 
-import LCCfg
-import FeatureMapping
-
-import openpyxl
 import codecs
-import LCUtil
 import os
-import pymysql
 import random
 import sys
+
+import openpyxl
+import pymysql
+
+import LCCfg
+import LCUtil
 
 
 drop_table_sql = u'DROP TABLE %s CASCADE; \n'
@@ -69,10 +69,10 @@ def raw_data_size(dn, varchar_list):
         with open(fn) as f:
             for line in f:
                 if line.startswith("\"id\""):
-                    headers = FeatureMapping.split_raw_data(line)
-                    col_pos_dict = FeatureMapping.extract_col_pos_dict(headers)
+                    headers = split_raw_data(line)
+                    col_pos_dict = extract_col_pos_dict(headers)
                 elif line.startswith("\""):
-                    fields = FeatureMapping.split_raw_data(line)
+                    fields = split_raw_data(line)
                     if len(fields) > 0:
                         for v in varchar_list:
                             if v in col_pos_dict:
@@ -137,6 +137,14 @@ def random_closed_investment(line, col_pos_dict):
     return closed_investment(line, col_pos_dict) and random_method(line, col_pos_dict)
 
 
+def split_raw_data(line):
+    return line.replace("\n", "").split("\",\"")
+
+
+def extract_col_pos_dict(headers):
+    return {h: i for i, h in enumerate(headers)}
+
+
 def sampling(dn, sample_file, sample_method):
     sample_list = []
     col_pos_dict = {}
@@ -146,10 +154,10 @@ def sampling(dn, sample_file, sample_method):
                 if line.startswith("\"id\""):
                     if len(sample_list) == 0:
                         sample_list.append(line)
-                        headers = FeatureMapping.split_raw_data(line)
-                        col_pos_dict = FeatureMapping.extract_col_pos_dict(headers)
+                        headers = split_raw_data(line)
+                        col_pos_dict = extract_col_pos_dict(headers)
                 elif line.startswith("\""):
-                    content = FeatureMapping.split_raw_data(line)
+                    content = split_raw_data(line)
                     if sample_method(content, col_pos_dict):
                         sample_list.append(line)
         print("Finished sampling %s" % fn)
@@ -172,13 +180,9 @@ else:
             # generate sample training data
             sample_data_uri = config.data_dir + "/" + config.training_sample
             sampling(config.data_dir, sample_data_uri + ".csv", random_closed_investment)
-            x, y = FeatureMapping.map_features(sample_data_uri + ".csv")
-            LCUtil.save_mapped_feature(x, y, sample_data_uri)
             # generate full training data
             training_data_uri = config.data_dir + "/" + config.training_full
             sampling(config.data_dir, training_data_uri + ".csv", closed_investment)
-            x, y = FeatureMapping.map_features(training_data_uri + ".csv")
-            LCUtil.save_mapped_feature(x, y, training_data_uri)
         elif option.startswith("seperate_data_file"):
             # use pre-saved random seeds to ensure the same train/cv/test set
             random_seeds = LCUtil.load_random_seeds()

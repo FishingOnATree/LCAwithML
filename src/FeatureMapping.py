@@ -174,16 +174,16 @@ def map_na_by_correlation(df, source_col, target_col, correlation):
     df.loc[index, target_col] = df.loc[index, source_col]*correlation
 
 
-def shape_list(data, data_ref_list):
+def shape_list(data):
     return np.asarray(list(itertools.chain(*data))).reshape(data.shape[0], len(data[0]))
 
 
 def map_features(df):
     x = np.append(df[X_COLUMNS].values,
-                  shape_list(df["home_ownership"].map(map_home_ownership).values, HOME_OWNERSHIP_LIST),
+                  shape_list(df["home_ownership"].map(map_home_ownership).values),
                   axis=1)
     x = np.append(x,
-                  shape_list(df["purpose"].map(map_purpose).values, PURPOSE_LIST),
+                  shape_list(df["purpose"].map(map_purpose).values),
                   axis=1)
     y = df["loan_status"].values
     return x, y

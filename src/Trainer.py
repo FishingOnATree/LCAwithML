@@ -1,29 +1,29 @@
 from __future__ import print_function
 import datetime
+import numpy as np
 import random
 import time
 import timeit
 import sys
 
 from sklearn import preprocessing
+from sklearn.externals import joblib
 
 import LCCfg
 import LCUtil
 import FeatureMapping
-from models import SVMModel #, NeuralNetworkModel
-from sklearn.externals import joblib
+from models import SVMModel
 
 
-def data_preprocess(x, y):
-    # use pre-saved random seeds to ensure the same train/cv/test set
-    random_seeds = LCUtil.load_random_seeds()
-    xtrain, xcv, xtest, ytrain, ycv, ytest = \
-        LCUtil.separate_training_data(x, y, 0.6, 0.2, random_seeds)
-    scaler = preprocessing.StandardScaler().fit(xtrain)
-    xtrain = scaler.transform(xtrain)
-    xcv = scaler.transform(xcv)
-    xtest = scaler.transform(xtest)
-    return xtrain, xcv, xtest, ytrain, ycv, ytest
+def data_preprocess(df_train, df_cv, df_test):
+    x_train,  y_train = FeatureMapping.map_features(df_train)
+    x_cv, y_cv = FeatureMapping.map_features(df_cv)
+    x_test, y_test = FeatureMapping.map_features(df_test)
+    scaler = preprocessing.StandardScaler().fit(x_train)
+    x_train = scaler.transform(x_train)
+    x_cv = scaler.transform(x_cv)
+    x_test = scaler.transform(x_test)
+    return x_train, x_cv, x_test, y_train, y_cv, y_test
 
 
 def cal_accuracy(y, h):
@@ -57,7 +57,7 @@ def validate_prediction(model, x_data, y_data, settings, traing_type):
     print("%s stats: " % traing_type)
     print("Accuracy = %3.2f%%" % (train_stats["accuracy"]))
     print("%2.2f%% bad loans predicted correctly" % (train_stats["false_accuracy"]))
-    return train_stats
+    return train_stats, h_train
 
 
 def map_random(x):
@@ -68,33 +68,28 @@ def train(data_f, weight_f):
     # load data
     df = FeatureMapping.load_data(data_f)
     df["random"] = df["id"].map(map_random)
-    # map polynomial features
-    poly_degree = 1
-    # poly = preprocessing.PolynomialFeatures(degree=poly_degree, interaction_only=True)
-    # x = poly.fit_transform(x)
     df_train = df[df["random"] < 0.6]
     df_cv = df[(df["random"] < 0.8) & (df["random"] >= 0.6)]
     df_test = df[df["random"] >= 0.8]
 
     print(df_train.shape[0], df_cv.shape[0], df_test.shape[0])
     # need to normalize mean and standardization
-    x_train,  y_train = FeatureMapping.map_features(df_train)
-    x_cv, y_cv = FeatureMapping.map_features(df_cv)
-    x_test, y_test = FeatureMapping.map_features(df_test)
-    scaler = preprocessing.StandardScaler().fit(x_train)
-    x_train = scaler.transform(x_train)
-    x_cv = scaler.transform(x_cv)
-    x_test = scaler.transform(x_test)
+    x_train, x_cv, x_test, y_train, y_cv, y_test = data_preprocess(df_train, df_cv, df_test)
 
     print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
     stats_list = []
     print("SVM trainer")
-    model = None
-    for c in [1, 10, 100, 1000]:
-        for max_iter in [-1]: #range(6000, 17001, 1000):
-            for neg_weights in range(80, 95, 3):
-                neg_weight_float = neg_weights / 100.0
-                class_weights = {0: neg_weight_float, 1: (1-neg_weight_float)}
+    # for c in [1]:
+    #     for max_iter in [-1]:
+    #         for neg_weights in range(87, 88, 1):
+    # for c in [0.1, 0.5, 1, 5]:
+    #     for max_iter in [-1]:
+    #         for neg_weights in range(85, 93, 1):
+    #            class_weights = {0: neg_weights/100.0, 1: (100-neg_weights)/100.0}
+    for iter in [[0.1, {0: 0.85, 1: 0.15}], [1, {0: 0.88, 1: 0.12}], [0.5, {0: 0.87, 1: 0.13}]]:
+                c = iter[0]
+                class_weights = iter[1]
+                max_iter = -1
                 settings = {"C": c,
                             "max_iter": max_iter,
                             "cache_size": 10000,
@@ -106,50 +101,56 @@ def train(data_f, weight_f):
                 print("Training finished with ", settings, " in ", total_time, " sec")
                 # record settings
                 settings["run_time"] = total_time
-                settings["poly_degree"] = poly_degree
-                # train_stats = validate_prediction(model, x_train, y_train, settings, "training")
-                # stats_list.append(train_stats)
-                cv_stats = validate_prediction(model, x_cv, y_cv, settings, "cv")
+                train_stats, h_train = validate_prediction(model, x_train, y_train, settings, "training")
+                # df_train["prediction"] = np.copy(h_train)
+                stats_list.append(train_stats)
+                cv_stats, h_cv = validate_prediction(model, x_cv, y_cv, settings, "cv")
+                # df_cv["prediction"] = np.copy(h_cv)
                 stats_list.append(cv_stats)
-    headers = ["type", "poly_degree", "C", "max_iter", "cache_size", "class_weight",
+                test_stats, h_test = validate_prediction(model, x_test, y_test, settings, "test")
+                # df_test["prediction"] = np.copy(h_test)
+                stats_list.append(test_stats)
+    headers = ["type", "C", "max_iter", "cache_size", "class_weight",
                "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
 
     time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
     out_put_fn = config.data_dir + "/" + time_str + ".csv"
-    # LCUtil.save_results(headers, stats_list, out_put_fn)
+    LCUtil.save_results(headers, stats_list, out_put_fn)
     # # save final weight
     # joblib.dump(model, weight_f)
+    return df_train, df_cv, df_test, model
 
 
-def predict(data_file, weight_file):
-    model = joblib.load(weight_file)
+def predict(data_file, model):
     # load data
     df = FeatureMapping.load_data(data_file)
     x, y = FeatureMapping.map_features(df)
-    # map polynomial features
-    poly_degree = 1
-    poly = preprocessing.PolynomialFeatures(degree=poly_degree, interaction_only=True)
-    x = poly.fit_transform(x)
     print(x.shape)
     # need to normalize mean and standardization
-    x_train, x_cv, x_test, y_train, y_cv, y_test = data_preprocess(x, y)
-    stats = validate_prediction(model, x_test, y_test, {}, "test")
-    print(stats)
+    scaler = preprocessing.StandardScaler().fit(x)
+    x_norm = scaler.transform(x)
+    h = model.predict(x_norm)
+    df["prediction"] = np.copy(h)
+    return df
 
 
-if len(sys.argv) < 3:
-    print('not enough arguments')
-    sys.exit()
-else:
-    config = LCCfg.LCCfg("default.cfg")
-    is_trainging = True if sys.argv[1] == "train" else False
-    # use sample data by default
-    data_file = config.data_dir + "/" + sys.argv[2]
-    weight_file = config.data_dir + "/" + sys.argv[3]
-
-    if is_trainging:
-        train(data_file, weight_file)
+def main():
+    if len(sys.argv) < 3:
+        print('not enough arguments')
+        sys.exit()
     else:
-        predict(data_file, weight_file)
+        is_trainging = True if sys.argv[1] == "train" else False
+        # use sample data by default
+        data_file = config.data_dir + "/" + sys.argv[2]
+        weight_file = config.data_dir + "/" + sys.argv[3]
+
+        if is_trainging:
+            train(data_file, weight_file)
+        else:
+            model = joblib.load(weight_file)
+            predict(data_file, model)
 
 
+config = LCCfg.LCCfg("default.cfg")
+if __name__ == "__main__":
+    main()
