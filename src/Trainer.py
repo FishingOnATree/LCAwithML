@@ -64,7 +64,19 @@ def map_random(x):
     return random.random()
 
 
-def train(data_f, weight_f):
+def name_file(settings):
+    return "weights_C" + str(settings["C"]) + "_max_iter" \
+           + str(settings["max_iter"]) \
+           + "_NW" + str(settings["class_weight"][0]) \
+           + "_" + get_time_str() \
+           + ".pkl"
+
+
+def get_time_str():
+    return datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
+
+
+def train(data_f):
     # load data
     df = FeatureMapping.load_data(data_f)
     df["random"] = df["id"].map(map_random)
@@ -86,9 +98,9 @@ def train(data_f, weight_f):
     #     for max_iter in [-1]:
     #         for neg_weights in range(85, 93, 1):
     #            class_weights = {0: neg_weights/100.0, 1: (100-neg_weights)/100.0}
-    for iter in [[0.1, {0: 0.85, 1: 0.15}], [1, {0: 0.88, 1: 0.12}], [0.5, {0: 0.87, 1: 0.13}]]:
-                c = iter[0]
-                class_weights = iter[1]
+    for iteration in [[1, {0: 0.88, 1: 0.12}]]:
+                c = iteration[0]
+                class_weights = iteration[1]
                 max_iter = -1
                 settings = {"C": c,
                             "max_iter": max_iter,
@@ -108,16 +120,18 @@ def train(data_f, weight_f):
                 # df_cv["prediction"] = np.copy(h_cv)
                 stats_list.append(cv_stats)
                 test_stats, h_test = validate_prediction(model, x_test, y_test, settings, "test")
-                # df_test["prediction"] = np.copy(h_test)
+                df_test["prediction"] = np.copy(h_test)
                 stats_list.append(test_stats)
+                df_test.to_csv(config.data_dir+"/df_test.csv")
+                # # save final weight
+                weight_f = config.data_dir + "/weights/" + name_file(settings)
+                joblib.dump(model, weight_f)
     headers = ["type", "C", "max_iter", "cache_size", "class_weight",
                "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
 
-    time_str = datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
+    time_str = get_time_str()
     out_put_fn = config.data_dir + "/" + time_str + ".csv"
     LCUtil.save_results(headers, stats_list, out_put_fn)
-    # # save final weight
-    # joblib.dump(model, weight_f)
     return df_train, df_cv, df_test, model
 
 
@@ -135,20 +149,25 @@ def predict(data_file, model):
 
 
 def main():
-    if len(sys.argv) < 3:
+    if len(sys.argv) < 2:
         print('not enough arguments')
         sys.exit()
     else:
         is_trainging = True if sys.argv[1] == "train" else False
         # use sample data by default
         data_file = config.data_dir + "/" + sys.argv[2]
-        weight_file = config.data_dir + "/" + sys.argv[3]
 
         if is_trainging:
-            train(data_file, weight_file)
+            train(data_file)
         else:
-            model = joblib.load(weight_file)
-            predict(data_file, model)
+            if len(sys.argv) < 3:
+                print('not enough arguments')
+                sys.exit()
+            else:
+                weight_file = sys.argv[3]
+                model = joblib.load(weight_file)
+                df = predict(data_file, model)
+                df.to_csv(config.data_dir+"/prediction_result_" + get_time_str() + ".csv")
 
 
 config = LCCfg.LCCfg("default.cfg")
