@@ -12,7 +12,7 @@ from sklearn.externals import joblib
 import LCCfg
 import LCUtil
 import FeatureMapping
-from models import SVMModel
+import Models
 
 
 def data_preprocess(df_train, df_cv, df_test):
@@ -76,7 +76,7 @@ def get_time_str():
     return datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
 
 
-def train(data_f):
+def train(data_f, model_name):
     # load data
     df = FeatureMapping.load_data(data_f)
     df["random"] = df["id"].map(map_random)
@@ -91,22 +91,17 @@ def train(data_f):
     print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
     stats_list = []
     print("SVM trainer")
-    # for c in [1]:
-    #     for max_iter in [-1]:
-    #         for neg_weights in range(87, 88, 1):
-    # for c in [0.1, 0.5, 1, 5]:
-    #     for max_iter in [-1]:
-    #         for neg_weights in range(85, 93, 1):
-    #            class_weights = {0: neg_weights/100.0, 1: (100-neg_weights)/100.0}
-    for iteration in [[1, {0: 0.88, 1: 0.12}], [1, {0: 0.75, 1: 0.25}]]:
+    model = None
+    for iteration in [[1, {0: 0.88, 1: 0.12}]]:
                 c = iteration[0]
                 class_weights = iteration[1]
                 max_iter = -1
                 settings = {"C": c,
                             "max_iter": max_iter,
                             "cache_size": 10000,
-                            "class_weight": class_weights}
-                model = SVMModel.SVMModel(settings)
+                            "class_weight": class_weights,
+                            "gamma": 1}
+                model = Models.get_instance(model_name, settings)
                 start_time = timeit.default_timer()
                 model.train(x_train, y_train, x_cv, y_cv)
                 total_time = timeit.default_timer() - start_time
@@ -122,15 +117,15 @@ def train(data_f):
                 test_stats, h_test = validate_prediction(model, x_test, y_test, settings, "test")
                 df_test["prediction"] = np.copy(h_test)
                 stats_list.append(test_stats)
-                df_test.to_csv(config.data_dir+"/df_test.csv")
+
+                # df_test.to_csv(config.data_dir+"/df_test.csv")
                 # # save final weight
                 # weight_f = config.data_dir + "/weights/" + name_file(settings)
                 # joblib.dump(model, weight_f)
-    headers = ["type", "C", "max_iter", "cache_size", "class_weight",
-               "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
+    headers = ["type", "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"].append(model.get_param_headers())
 
     time_str = get_time_str()
-    out_put_fn = config.data_dir + "/" + time_str + ".csv"
+    out_put_fn = config.data_dir + "/" + model.get_name() + "_" + time_str + ".csv"
     LCUtil.save_results(headers, stats_list, out_put_fn)
     return df_train, df_cv, df_test, model
 
@@ -149,22 +144,23 @@ def predict(data_file, model):
 
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 4:
         print('not enough arguments')
         sys.exit()
     else:
         is_trainging = True if sys.argv[1] == "train" else False
+        model_name = sys.argv[2]
         # use sample data by default
-        data_file = config.data_dir + "/" + sys.argv[2]
+        data_file = config.data_dir + "/" + sys.argv[3]
 
         if is_trainging:
-            train(data_file)
+            train(data_file, model_name)
         else:
-            if len(sys.argv) < 3:
+            if len(sys.argv) < 5:
                 print('not enough arguments')
                 sys.exit()
             else:
-                weight_file = sys.argv[3]
+                weight_file = sys.argv[4]
                 model = joblib.load(weight_file)
                 df = predict(data_file, model)
                 df.to_csv(config.data_dir+"/prediction_result_" + get_time_str() + ".csv")
