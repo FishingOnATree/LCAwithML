@@ -123,9 +123,15 @@ def map_percent(s):
         return float(s)
 
 
-def load_data(raw_data_file):
-    df = pd.read_csv(raw_data_file, sep=",", engine="python", quoting=csv.QUOTE_ALL)
+def strip(text):
+    try:
+        return text.strip()
+    except AttributeError:
+        return text
 
+
+def load_data(raw_data_file):
+    df = pd.read_csv(raw_data_file, sep=",", engine="python", quoting=csv.QUOTE_ALL, skipinitialspace=True)
     # drop NA to have more features available without tot_cur_bal -
     #       idea is we don't lend to those we don't know how much he owes outside
     df = df[np.isfinite(df["tot_cur_bal"])]

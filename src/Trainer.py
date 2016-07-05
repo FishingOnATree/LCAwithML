@@ -98,7 +98,7 @@ def train(data_f):
     #     for max_iter in [-1]:
     #         for neg_weights in range(85, 93, 1):
     #            class_weights = {0: neg_weights/100.0, 1: (100-neg_weights)/100.0}
-    for iteration in [[1, {0: 0.88, 1: 0.12}]]:
+    for iteration in [[1, {0: 0.88, 1: 0.12}], [1, {0: 0.75, 1: 0.25}]]:
                 c = iteration[0]
                 class_weights = iteration[1]
                 max_iter = -1
@@ -124,8 +124,8 @@ def train(data_f):
                 stats_list.append(test_stats)
                 df_test.to_csv(config.data_dir+"/df_test.csv")
                 # # save final weight
-                weight_f = config.data_dir + "/weights/" + name_file(settings)
-                joblib.dump(model, weight_f)
+                # weight_f = config.data_dir + "/weights/" + name_file(settings)
+                # joblib.dump(model, weight_f)
     headers = ["type", "C", "max_iter", "cache_size", "class_weight",
                "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
 
