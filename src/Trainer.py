@@ -100,7 +100,11 @@ def train(data_f, model_name):
                             "max_iter": max_iter,
                             "cache_size": 10000,
                             "class_weight": class_weights,
-                            "gamma": 1}
+                            "gamma": 1,
+                            "min_samples_split": 12,
+                            "min_samples_leaf": 5,
+                            "n_estimators": 50,
+                            "model": model_name}
                 model = Models.get_instance(model_name, settings)
                 start_time = timeit.default_timer()
                 model.train(x_train, y_train, x_cv, y_cv)
@@ -122,10 +126,11 @@ def train(data_f, model_name):
                 # # save final weight
                 # weight_f = config.data_dir + "/weights/" + name_file(settings)
                 # joblib.dump(model, weight_f)
-    headers = ["type", "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"].append(model.get_param_headers())
+    headers = ["model", "type", "accuracy", "false_accuracy", "tp", "tn", "fp", "fn", "run_time"]
+    headers.extend(model.get_param_headers())
 
     time_str = get_time_str()
-    out_put_fn = config.data_dir + "/" + model.get_name() + "_" + time_str + ".csv"
+    out_put_fn = config.data_dir + "/" + model_name + "_" + time_str + ".csv"
     LCUtil.save_results(headers, stats_list, out_put_fn)
     return df_train, df_cv, df_test, model
 

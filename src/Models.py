@@ -3,7 +3,9 @@ __author__ = 'Rays'
 # from keras.layers import Dense, Dropout, Activation
 # from keras.optimizers import SGD
 from sklearn import svm
-
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
 
 class ModelBase:
 
@@ -25,15 +27,12 @@ class ModelBase:
 #
 #     @property
 #     def __init__(self, settings):
-#         self.model = Sequential()
 #         # model variables
 #         self.batch_size = settings["batch_size"]
 #         self.nb_epoch = settings["nb_epoch"]
 #         self.hidden_unit_width = settings["hidden_unit_width"]
 #         self.drop_out_rate = settings["drop_out_rate"]
-#
-#     @property
-#     def train(self, x_train, y_train, x_cv, y_cv):
+#         self.model = Sequential()
 #         self.model.add(Dense(input_dim=x_train.shape[1], output_dim=self.hidden_unit_width))
 #         self.model.add(Activation('relu'))
 #         self.model.add(Dropout(self.drop_out_rate))
@@ -45,6 +44,9 @@ class ModelBase:
 #         self.model.add(Dropout(self.drop_out_rate))
 #         self.model.add(Dense(output_dim=2))
 #         self.model.add(Activation('softmax'))
+#
+#     @property
+#     def train(self, x_train, y_train, x_cv, y_cv):
 #         # let's train the model using SGD + momentum (how original).
 #         sgd = SGD(lr=0.03, decay=1e-6, momentum=0.9, nesterov=True)
 #         self.model.compile(loss='sparse_categorical_crossentropy',
@@ -73,6 +75,68 @@ class ModelBase:
 #         return ["nb_epoch", "batch_size", "hidden_unit_width", "drop_out_rate"]
 
 
+
+class AdaBoostModel(ModelBase):
+
+    def __init__(self, settings):
+        self.model = AdaBoostClassifier(n_estimators=settings["n_estimators"])
+        pass
+
+    def train(self, x_train, y_train, x_cv, y_cv):
+        self.model.fit(x_train, y_train)
+
+    def predict(self, x):
+        return self.model.predict(x)
+
+    @staticmethod
+    def get_param_headers():
+        return ["n_estimators"]
+
+
+class RandomForestModel(ModelBase):
+
+    def __init__(self, settings):
+        # n_estimators=10, criterion='gini',
+        # max_depth=None, min_samples_split=2,
+        # min_samples_leaf=1,
+        # min_weight_fraction_leaf=0.0,
+        # max_features='auto', max_leaf_nodes=None,
+        # bootstrap=True, oob_score=False, n_jobs=1,
+        # random_state=None, verbose=0, warm_start=False, class_weight=None
+        self.model = RandomForestClassifier(n_estimators=settings["n_estimators"],
+                                            min_samples_split=settings["min_samples_split"],
+                                            min_samples_leaf=settings["min_samples_leaf"],
+                                            class_weight=settings["class_weight"])
+        pass
+
+    def train(self, x_train, y_train, x_cv, y_cv):
+        self.model.fit(x_train, y_train)
+
+    def predict(self, x):
+        return self.model.predict(x)
+
+    @staticmethod
+    def get_param_headers():
+        return ["n_estimators", "min_samples_split", "min_samples_leaf", "class_weight"]
+
+
+class GaussianNBModel(ModelBase):
+
+    def __init__(self, settings):
+        self.model = GaussianNB()
+        pass
+
+    def train(self, x_train, y_train, x_cv, y_cv):
+        self.model.fit(x_train, y_train)
+
+    def predict(self, x):
+        return self.model.predict(x)
+
+    @staticmethod
+    def get_param_headers():
+        return []
+
+
 class SVMModel(ModelBase):
 
     def __init__(self, settings):
@@ -95,12 +159,15 @@ class SVMModel(ModelBase):
         return self.model.predict(x)
 
     @staticmethod
-    def get_param_headers(self):
+    def get_param_headers():
         return ["C", "max_iter", "class_weight", "gamma"]
 
 
 MODEL_DICT = { #"NN": NeuralNetworkModel,
-              "SVM": SVMModel}
+               "ADA": AdaBoostModel,
+               "GB": GaussianNBModel,
+               "RF": RandomForestModel,
+               "SVM": SVMModel}
 
 
 def get_instance(model_name, settings):
