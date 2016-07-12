@@ -2,21 +2,54 @@ __author__ = 'Rays'
 # from keras.models import Sequential
 # from keras.layers import Dense, Dropout, Activation
 # from keras.optimizers import SGD
-from sklearn import svm
+import numpy as np
+from sklearn import svm, datasets, feature_selection, cross_validation
+import matplotlib.pyplot as plt
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import GaussianNB
+from sklearn.pipeline import Pipeline
+
 
 class ModelBase:
 
-    def __init__(self):
-        pass
+    def __init__(self, settings):
+        self.model = self.get_model(settings)
+        self.settings = settings
+
+    def get_model(self, settings):
+        raise NotImplementedError("Class %s doesn't implement aMethod()" % __name__)
 
     def train(self, x_train, y_train, x_cv, y_cv):
         raise NotImplementedError("Class %s doesn't implement aMethod()" % __name__)
 
     def predict(self, x):
         raise NotImplementedError("Class %s doesn't implement aMethod()" % __name__)
+
+    def plot_feature_selection_diagram(self, x, y):
+        clf = Pipeline([('selector', self.get_feature_selection()), ('learning', self.model)])
+        score_means = list()
+        score_stds = list()
+        percentiles = (10, 20, 30, 40, 50, 60, 70)
+        for percentile in percentiles:
+            clf.set_params(selector__percentile=percentile)
+            # Compute cross-validation score using all CPUs
+            this_scores = cross_validation.cross_val_score(clf, x, y, n_jobs=1)
+            score_means.append(this_scores.mean())
+            score_stds.append(this_scores.std())
+            print("Finished percentile %d" % percentile)
+        plt.errorbar(percentiles, score_means, np.array(score_stds))
+
+        plt.title('Performance of the SVM-Anova varying the percentile of features selected')
+        plt.xlabel('Percentile')
+        plt.ylabel('Prediction rate')
+
+        plt.axis('tight')
+        plt.show()
+
+    @staticmethod
+    def get_feature_selection():
+        return feature_selection.SelectPercentile(feature_selection.f_classif)
 
     @staticmethod
     def get_param_headers():
@@ -25,25 +58,24 @@ class ModelBase:
 
 # class NeuralNetworkModel(ModelBase):
 #
-#     @property
-#     def __init__(self, settings):
-#         # model variables
-#         self.batch_size = settings["batch_size"]
-#         self.nb_epoch = settings["nb_epoch"]
-#         self.hidden_unit_width = settings["hidden_unit_width"]
-#         self.drop_out_rate = settings["drop_out_rate"]
-#         self.model = Sequential()
-#         self.model.add(Dense(input_dim=x_train.shape[1], output_dim=self.hidden_unit_width))
-#         self.model.add(Activation('relu'))
-#         self.model.add(Dropout(self.drop_out_rate))
-#         self.model.add(Dense(input_dim=self.hidden_unit_width, output_dim=self.hidden_unit_width))
-#         self.model.add(Activation('relu'))
-#         self.model.add(Dropout(self.drop_out_rate))
-#         self.model.add(Dense(input_dim=self.hidden_unit_width, output_dim=self.hidden_unit_width))
-#         self.model.add(Activation('relu'))
-#         self.model.add(Dropout(self.drop_out_rate))
-#         self.model.add(Dense(output_dim=2))
-#         self.model.add(Activation('softmax'))
+#     def get_model(self, settings):
+#         batch_size = settings["batch_size"]
+#         nb_epoch = settings["nb_epoch"]
+#         hidden_unit_width = settings["hidden_unit_width"]
+#         drop_out_rate = settings["drop_out_rate"]
+#         model = Sequential()
+#         model.add(Dense(input_dim=x_train.shape[1], output_dim=hidden_unit_width))
+#         model.add(Activation('relu'))
+#         model.add(Dropout(self.drop_out_rate))
+#         model.add(Dense(input_dim=hidden_unit_width, output_dim=hidden_unit_width))
+#         model.add(Activation('relu'))
+#         model.add(Dropout(self.drop_out_rate))
+#         model.add(Dense(input_dim=hidden_unit_width, output_dim=hidden_unit_width))
+#         model.add(Activation('relu'))
+#         model.add(Dropout(self.drop_out_rate))
+#         model.add(Dense(output_dim=2))
+#         model.add(Activation('softmax'))
+#         return model
 #
 #     @property
 #     def train(self, x_train, y_train, x_cv, y_cv):
@@ -75,12 +107,10 @@ class ModelBase:
 #         return ["nb_epoch", "batch_size", "hidden_unit_width", "drop_out_rate"]
 
 
-
 class AdaBoostModel(ModelBase):
 
-    def __init__(self, settings):
-        self.model = AdaBoostClassifier(n_estimators=settings["n_estimators"])
-        pass
+    def get_model(self, settings):
+        return AdaBoostClassifier(n_estimators=settings["n_estimators"])
 
     def train(self, x_train, y_train, x_cv, y_cv):
         self.model.fit(x_train, y_train)
@@ -95,19 +125,11 @@ class AdaBoostModel(ModelBase):
 
 class RandomForestModel(ModelBase):
 
-    def __init__(self, settings):
-        # n_estimators=10, criterion='gini',
-        # max_depth=None, min_samples_split=2,
-        # min_samples_leaf=1,
-        # min_weight_fraction_leaf=0.0,
-        # max_features='auto', max_leaf_nodes=None,
-        # bootstrap=True, oob_score=False, n_jobs=1,
-        # random_state=None, verbose=0, warm_start=False, class_weight=None
-        self.model = RandomForestClassifier(n_estimators=settings["n_estimators"],
-                                            min_samples_split=settings["min_samples_split"],
-                                            min_samples_leaf=settings["min_samples_leaf"],
-                                            class_weight=settings["class_weight"])
-        pass
+    def get_model(self, settings):
+        return RandomForestClassifier(n_estimators=settings["n_estimators"],
+                                      min_samples_split=settings["min_samples_split"],
+                                      min_samples_leaf=settings["min_samples_leaf"],
+                                      class_weight=settings["class_weight"])
 
     def train(self, x_train, y_train, x_cv, y_cv):
         self.model.fit(x_train, y_train)
@@ -122,9 +144,8 @@ class RandomForestModel(ModelBase):
 
 class GaussianNBModel(ModelBase):
 
-    def __init__(self, settings):
-        self.model = GaussianNB()
-        pass
+    def get_model(self, settings):
+        return GaussianNB()
 
     def train(self, x_train, y_train, x_cv, y_cv):
         self.model.fit(x_train, y_train)
@@ -139,18 +160,11 @@ class GaussianNBModel(ModelBase):
 
 class SVMModel(ModelBase):
 
-    def __init__(self, settings):
-        # C: small --> soft-margin and allows misclassification (regularization)
-        # gamma: inverse to influential area of SVs, small gamma --> each SV only affects a small area and cannot capture the curve.
-        # self.model = svm.SVC(C=settings["C"],
-        #                      max_iter=settings["max_iter"],
-        #                      cache_size=settings["cache_size"],
-        #                      gamma=settings["gamma"],
-        #                      class_weight=settings["class_weight"])
-        # [C=1, class_weights={0: 0.88, 1: 0.12}] is by far the best indicator. RS 16/07/05
-        self.model = svm.SVC(kernel="rbf",  C=settings["C"],
-                             class_weight=settings["class_weight"], gamma=settings["gamma"])
-        pass
+    def get_model(self, settings):
+        return svm.SVC(kernel="rbf",
+                       C=settings["C"],
+                       class_weight=settings["class_weight"],
+                       gamma=settings["gamma"])
 
     def train(self, x_train, y_train, x_cv, y_cv):
         self.model.fit(x_train, y_train)
@@ -163,6 +177,7 @@ class SVMModel(ModelBase):
         return ["C", "max_iter", "class_weight", "gamma"]
 
 
+
 MODEL_DICT = { #"NN": NeuralNetworkModel,
                "ADA": AdaBoostModel,
                "GB": GaussianNBModel,
@@ -171,7 +186,7 @@ MODEL_DICT = { #"NN": NeuralNetworkModel,
 
 
 def get_instance(model_name, settings):
-    if not MODEL_DICT.has_key(model_name):
+    if model_name not in MODEL_DICT:
         raise ValueError("%s is not a valid options in %s" % (model_name, str(MODEL_DICT.keys())))
     else:
         model_class = MODEL_DICT[model_name]

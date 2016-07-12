@@ -76,26 +76,35 @@ def get_time_str():
     return datetime.datetime.fromtimestamp(time.time()).strftime('%Y%m%d_%H%M')
 
 
-def train(data_f, model_name):
+def get_seperated_data_frame(data_f):
     # load data
     df = FeatureMapping.load_data(data_f)
     df["random"] = df["id"].map(map_random)
     df_train = df[df["random"] < 0.6]
     df_cv = df[(df["random"] < 0.8) & (df["random"] >= 0.6)]
     df_test = df[df["random"] >= 0.8]
+    return df_train, df_cv, df_test
 
+
+def get_separated_data_and_frame(data_f):
+    df_train, df_cv, df_test = get_seperated_data_frame(data_f)
     print(df_train.shape[0], df_cv.shape[0], df_test.shape[0])
     # need to normalize mean and standardization
     x_train, x_cv, x_test, y_train, y_cv, y_test = data_preprocess(df_train, df_cv, df_test)
+    return df_train, df_cv, df_test,  x_train,x_cv, x_test, y_train, y_cv, y_test
+
+
+def train(data_f, model_name):
+    df_train, df_cv, df_test,  x_train,x_cv, x_test, y_train, y_cv, y_test = get_separated_data_and_frame(data_f)
 
     print("Data size: Training, CV, Test = %d, %d, %d" % (x_train.shape[0], x_cv.shape[0], x_test.shape[0]))
     stats_list = []
-    print("SVM trainer")
     model = None
     for iteration in [[1, {0: 0.88, 1: 0.12}]]:
                 c = iteration[0]
                 class_weights = iteration[1]
                 max_iter = -1
+                # TODO: figure out a better way to specify different parameters for each model.
                 settings = {"C": c,
                             "max_iter": max_iter,
                             "cache_size": 10000,
@@ -135,9 +144,9 @@ def train(data_f, model_name):
     return df_train, df_cv, df_test, model
 
 
-def predict(data_file, model):
+def predict(data_f, model):
     # load data
-    df = FeatureMapping.load_data(data_file)
+    df = FeatureMapping.load_data(data_f)
     x, y = FeatureMapping.map_features(df)
     print(x.shape)
     # need to normalize mean and standardization
@@ -148,18 +157,38 @@ def predict(data_file, model):
     return df
 
 
+def feature_selection(data_f, model_name):
+    df_train, df_cv, df_test,  x_train,x_cv, x_test, y_train, y_cv, y_test = get_separated_data_and_frame(data_f)
+    for iteration in [[1, {0: 0.75, 1: 0.25}]]:
+        c = iteration[0]
+        class_weights = iteration[1]
+        max_iter = -1
+        settings = {"C": c,
+                    "max_iter": max_iter,
+                    "cache_size": 10000,
+                    "class_weight": class_weights,
+                    "gamma": 1,
+                    "min_samples_split": 12,
+                    "min_samples_leaf": 5,
+                    "n_estimators": 50,
+                    "model": model_name}
+        model = Models.get_instance(model_name, settings)
+        model.plot_feature_selection_diagram(x_train, y_train)
+
+
 def main():
     if len(sys.argv) < 4:
         print('not enough arguments')
         sys.exit()
     else:
-        is_trainging = True if sys.argv[1] == "train" else False
         model_name = sys.argv[2]
         # use sample data by default
         data_file = config.data_dir + "/" + sys.argv[3]
 
-        if is_trainging:
+        if sys.argv[1] == "train":
             train(data_file, model_name)
+        elif sys.argv[1] == "feature_select":
+            feature_selection(data_file, model_name)
         else:
             if len(sys.argv) < 5:
                 print('not enough arguments')
